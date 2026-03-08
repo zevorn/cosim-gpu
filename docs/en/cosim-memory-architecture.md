@@ -19,26 +19,26 @@ Both types of memory must be shared between QEMU and gem5 — otherwise gem5 can
 ## 2. Overall Architecture
 
 ```
-+---------------------------+                    +----------------------------+
-|  QEMU  (Q35 + KVM)        |                    |  gem5  (Docker)             |
++----------------------------+                    +-----------------------------+
+|  QEMU  (Q35 + KVM)         |                    |  gem5  (Docker)             |
 |                            |                    |                             |
 |  Guest Linux               |                    |  MI300X GPU Model           |
 |  amdgpu driver             |                    |    Shader / CU / SDMA       |
 |                            |                    |    PM4 / IH / Ruby caches   |
-|  +--------+  +---------+  |    Unix Socket     |  +---------+  +----------+  |
-|  | BAR0   |  | BAR5    |<----(MMIO/DMA/IRQ)---->| cosim     |  | GPU core |  |
-|  | (VRAM) |  | (MMIO)  |  |                    |  | bridge   |  |          |  |
-|  +---+----+  +---------+  |                    |  +----+----+  +----------+  |
-|      |                     |                    |       |                      |
-+------+---------------------+                    +-------+----------------------+
+|  +--------+  +---------+   |    Unix Socket     |  +---------+  +----------+  |
+|  | BAR0   |  | BAR5    |<-----(MMIO/DMA/IRQ)------>| cosim   |  | GPU core |  |
+|  | (VRAM) |  | (MMIO)  |   |                    |  | bridge  |  |          |  |
+|  +---+----+  +---------+   |                    |  +----+----+  +----------+  |
+|      |                     |                    |       |                     |
++------+---------------------+                    +-------+---------------------+
        |                                                  |
        v                                                  v
-  /dev/shm/mi300x-vram (16 GiB)                    mmap same file
-  (VRAM: GPU data + GART page tables)             (vramShmemPtr)
+  /dev/shm/mi300x-vram (16 GiB)                      mmap same file
+  (VRAM: GPU data + GART page tables)              (vramShmemPtr)
        |                                                  |
        v                                                  v
-  /dev/shm/cosim-guest-ram (8 GiB)                  mmap same file
-  (Guest RAM: ring buffers, fences,            (system->getPhysMem())
+  /dev/shm/cosim-guest-ram (8 GiB)                    mmap same file
+  (Guest RAM: ring buffers, fences,                (system->getPhysMem())
    GTT pages, kernel/user data)
 ```
 
@@ -84,19 +84,19 @@ gpuDevice->getVM().vramShmemSize = vramSize;
 ### 3.2 VRAM Content Layout
 
 ```
-Offset 0x000000000  +----------------------------+
-                    |  GPU Data Area              |
+Offset 0x000000000  +------------------------------+
+                    |  GPU Data Area               |
                     |  - hipMalloc allocations     |
                     |  - Kernel args, textures     |
                     |  - Driver internal allocs    |
                     |                              |
                     |        ...                   |
                     |                              |
-Offset ~0x3EE600000 +----------------------------+
+Offset ~0x3EE600000 +------------------------------+
 (ptBase)            |  GART Page Table (PTEs)      |
                     |  8 bytes per PTE             |
                     |  Maps GPU VA -> phys addr    |
-Offset 0x400000000  +----------------------------+
+Offset 0x400000000  +------------------------------+
 (16 GiB)
 ```
 
@@ -269,7 +269,7 @@ gem5 GPU model
   |   { type=DmaWrite, addr=guestPhysAddr, data=length, size=length }
   |
   +- sendAll(eventFd, &msg, 32)        -->  QEMU event thread
-  +- sendAll(eventFd, data, length)    -->      |
+  +- sendAll(eventFd, data, length)    -->    |
   |                                           +- pci_dma_write(addr, buf, len)
   |                                           |  (writes to /dev/shm/cosim-guest-ram)
   |                                           |

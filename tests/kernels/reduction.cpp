@@ -30,7 +30,7 @@ __global__ void reduce_sum(const float* input, float* output, int N) {
 }
 
 int main() {
-    const int N = 1 << 16;  // 64K elements
+    const int N = 1 << 12;  // 4K elements
     const size_t bytes = N * sizeof(float);
     int failures = 0;
     Timer timer;

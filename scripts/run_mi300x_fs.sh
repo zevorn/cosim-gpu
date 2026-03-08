@@ -5,8 +5,8 @@
 # Adapted for the local development layout:
 #   /home/zevorn/cosim/
 #     gem5/                     <- gem5 source & build
-#       gem5-resources/         <- disk image, kernel, GPU apps
-#       scripts/                <- this script
+#     gem5-resources/           <- disk image, kernel, GPU apps
+#     scripts/                  <- this script
 #     qemu/                     <- QEMU source (for cosim mode)
 #
 # Usage:
@@ -27,7 +27,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COSIM_DIR="$(dirname "$SCRIPT_DIR")"
 GEM5_DIR="${COSIM_DIR}/gem5"
-RESOURCES_DIR="${GEM5_DIR}/gem5-resources"
+RESOURCES_DIR="${COSIM_DIR}/gem5-resources"
 
 # Built artifacts (ROCm 7.0 disk image)
 DISK_IMAGE_DIR="${RESOURCES_DIR}/src/x86-ubuntu-gpu-ml/disk-image"

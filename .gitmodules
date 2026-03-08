@@ -6,3 +6,7 @@
 	path = qemu
 	url = git@github.com:zevorn/qemu.git
 	branch = cosim-gpu
+[submodule "gem5-resources"]
+	path = gem5-resources
+	url = https://github.com/gem5/gem5-resources.git
+	branch = stable

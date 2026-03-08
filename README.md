@@ -56,19 +56,19 @@ docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     -e PYTHONPATH=/usr/lib/python3.12/lib-dynload \
     ghcr.io/gem5/gpu-fs:latest \
     bash -c "scons build/VEGA_X86/gem5.opt -j4 GOLD_LINKER=True --linker=gold"
+cd ..
 
 # 3. Build runtime Docker image
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
 # 4. Build QEMU
-cd ../qemu
+cd qemu
 mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
 cd ../..
 
 # 5. Build disk image (Ubuntu 24.04 + ROCm 7.0)
-cd gem5
 ./scripts/run_mi300x_fs.sh build-disk
 
 # 6. Launch co-simulation
@@ -123,6 +123,7 @@ cosim/
 ├── qemu/                    # QEMU emulator (submodule, cosim-gpu branch)
 │   ├── hw/misc/mi300x_gem5.c      # mi300x-gem5 PCIe device
 │   └── include/hw/misc/mi300x_gem5.h
+├── gem5-resources/          # disk images, kernels, GPU apps (submodule)
 ├── scripts/                 # build & launch scripts
 │   ├── cosim_launch.sh      # one-click cosim launcher
 │   ├── run_mi300x_fs.sh     # build orchestration

@@ -144,5 +144,5 @@ rocminfo | head -40
 | VGA BIOS ROM | `/root/roms/mi300.rom` | 由 Packer 构建 |
 | IP Discovery 固件 | `/usr/lib/firmware/amdgpu/mi300_discovery` | 由 Packer 构建 |
 | WMI 桩模块 | `/home/gem5/gem5_wmi.ko` | 由 Packer 构建 |
-| 驱动加载脚本 | `/home/gem5/load_amdgpu.sh` | `gem5-resources/files/` |
+| 驱动加载脚本 | `/home/gem5/load_amdgpu.sh` | `gem5-resources/src/x86-ubuntu-gpu-ml/files/` |
 | amdgpu 模块 | `/lib/modules/$(uname -r)/updates/dkms/amdgpu.ko.zst` | ROCm 7.0 DKMS |

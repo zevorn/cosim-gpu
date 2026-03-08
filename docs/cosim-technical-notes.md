@@ -287,10 +287,10 @@ screen -dmS qemu-cosim -L -Logfile /tmp/qemu-cosim-screen.log \
   -object memory-backend-file,id=mem0,size=8G,\
           mem-path=/dev/shm/cosim-guest-ram,share=on \
   -numa node,memdev=mem0 \
-  -kernel gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
+  -kernel ../gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
   -append "console=ttyS0,115200 root=/dev/vda1 \
            modprobe.blacklist=amdgpu earlyprintk=serial,ttyS0,115200" \
-  -drive file=gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,\
+  -drive file=../gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,\
          format=raw,if=virtio \
   -device mi300x-gem5,gem5-socket=/tmp/gem5-mi300x.sock,\
           shmem-path=/dev/shm/mi300x-vram,vram-size=17179869184 \

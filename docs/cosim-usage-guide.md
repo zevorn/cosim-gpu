@@ -47,15 +47,15 @@
         build/VEGA_X86/gem5.opt        # gem5 二进制
         configs/example/gpufs/
             mi300_cosim.py             # cosim 配置脚本
-        gem5-resources/                # 磁盘镜像、内核、GPU 应用
-            src/x86-ubuntu-gpu-ml/
-                disk-image/x86-ubuntu-rocm70   # 55G raw 磁盘镜像
-                vmlinux-rocm70                 # 内核
         scripts/
             run_mi300x_fs.sh           # 编排脚本
             cosim_launch.sh            # cosim 一键启动脚本
             Dockerfile.run             # 运行时 Docker 镜像
-        docs/                          # 文档
+    gem5-resources/                    # 磁盘镜像、内核、GPU 应用
+        src/x86-ubuntu-gpu-ml/
+            disk-image/x86-ubuntu-rocm70   # 55G raw 磁盘镜像
+            vmlinux-rocm70                 # 内核
+    docs/                              # 文档
     qemu/                              # QEMU 源码（含 mi300x-gem5 设备）
         build/qemu-system-x86_64       # QEMU 二进制
 ```
@@ -135,7 +135,7 @@ cd /home/zevorn/cosim/gem5
 ### 手动构建
 
 ```bash
-cd gem5-resources/src/x86-ubuntu-gpu-ml
+cd ../gem5-resources/src/x86-ubuntu-gpu-ml
 ./build.sh -var "qemu_path=/usr/sbin/qemu-system-x86_64"
 ```
 
@@ -145,8 +145,8 @@ cd gem5-resources/src/x86-ubuntu-gpu-ml
 
 | 产物 | 路径 | 大小 |
 |---|---|---|
-| 磁盘镜像 | `gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70` | 约 55 GB |
-| 内核 | `gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70` | 约 64 MB |
+| 磁盘镜像 | `../gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70` | 约 55 GB |
+| 内核 | `../gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70` | 约 64 MB |
 
 ---
 
@@ -232,9 +232,9 @@ docker exec gem5-cosim chmod 666 /dev/shm/mi300x-vram
     -m 8G -smp 4 \
     -object memory-backend-file,id=mem0,size=8G,mem-path=/dev/shm/cosim-guest-ram,share=on \
     -numa node,memdev=mem0 \
-    -kernel /home/zevorn/cosim/gem5/gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
+    -kernel /home/zevorn/cosim/gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
     -append "console=ttyS0,115200 root=/dev/vda1 modprobe.blacklist=amdgpu" \
-    -drive file=/home/zevorn/cosim/gem5/gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,format=raw,if=virtio \
+    -drive file=/home/zevorn/cosim/gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,format=raw,if=virtio \
     -device mi300x-gem5,gem5-socket=/tmp/gem5-mi300x.sock,shmem-path=/dev/shm/mi300x-vram,vram-size=17179869184 \
     -nographic -no-reboot
 ```
@@ -250,9 +250,9 @@ screen -dmS qemu-cosim -L -Logfile /tmp/qemu-cosim-screen.log \
     -m 8G -smp 4 \
     -object memory-backend-file,id=mem0,size=8G,mem-path=/dev/shm/cosim-guest-ram,share=on \
     -numa node,memdev=mem0 \
-    -kernel /home/zevorn/cosim/gem5/gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
+    -kernel /home/zevorn/cosim/gem5-resources/src/x86-ubuntu-gpu-ml/vmlinux-rocm70 \
     -append "console=ttyS0,115200 root=/dev/vda1 modprobe.blacklist=amdgpu" \
-    -drive file=/home/zevorn/cosim/gem5/gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,format=raw,if=virtio \
+    -drive file=/home/zevorn/cosim/gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70,format=raw,if=virtio \
     -device mi300x-gem5,gem5-socket=/tmp/gem5-mi300x.sock,shmem-path=/dev/shm/mi300x-vram,vram-size=17179869184 \
     -nographic -no-reboot
 

@@ -35,15 +35,15 @@
         configs/example/
             gem5_library/x86-mi300x-gpu.py   # stdlib 配置
             gpufs/mi300.py                   # legacy 配置
-        gem5-resources/            # 磁盘镜像、内核、GPU 应用
-            src/x86-ubuntu-gpu-ml/
-                disk-image/x86-ubuntu-rocm70   # 55G raw 磁盘镜像
-                vmlinux-rocm70                 # 提取的内核
-            src/gpu/square/        # square 测试应用
         scripts/
             run_mi300x_fs.sh       # 编排脚本
             Dockerfile.run         # 运行时 Docker 镜像
-        docs/                      # 本文档
+    gem5-resources/                # 磁盘镜像、内核、GPU 应用
+        src/x86-ubuntu-gpu-ml/
+            disk-image/x86-ubuntu-rocm70   # 55G raw 磁盘镜像
+            vmlinux-rocm70                 # 提取的内核
+        src/gpu/square/            # square 测试应用
+    docs/                          # 文档
     qemu/                          # QEMU 源码（cosim 设备）
         build/qemu-system-x86_64
 ```
@@ -83,6 +83,7 @@ scons build/VEGA_X86/gem5.opt -j$(nproc)
 或手动克隆：
 
 ```bash
+cd /home/zevorn/cosim
 git clone --depth 1 https://github.com/gem5/gem5-resources.git gem5-resources
 ```
 
@@ -100,7 +101,7 @@ git clone --depth 1 https://github.com/gem5/gem5-resources.git gem5-resources
 ### 手动构建
 
 ```bash
-cd gem5-resources/src/x86-ubuntu-gpu-ml
+cd ../gem5-resources/src/x86-ubuntu-gpu-ml
 
 # 下载 Packer 并构建
 ./build.sh -var "qemu_path=/usr/sbin/qemu-system-x86_64"
@@ -175,7 +176,7 @@ amdxcp.ko.zst
 ```
 
 使用 Docker（`ghcr.io/gem5/gpu-fs`）或本地 `hipcc` 编译。
-产出：`gem5-resources/src/gpu/square/bin.default/square.default`。
+产出：`../gem5-resources/src/gpu/square/bin.default/square.default`。
 
 ## 第六步：构建运行时 Docker 镜像
 
@@ -192,7 +193,7 @@ docker build -t gem5-run:local -f Dockerfile.run .
 
 ```bash
 ./scripts/run_mi300x_fs.sh run \
-    gem5-resources/src/gpu/square/bin.default/square.default
+    ../gem5-resources/src/gpu/square/bin.default/square.default
 ```
 
 > **重要：必须指定 `--app` 参数。** 不指定时，`readfile_contents` 为空字符串
@@ -203,7 +204,7 @@ docker build -t gem5-run:local -f Dockerfile.run .
 
 ```bash
 ./scripts/run_mi300x_fs.sh run-legacy \
-    gem5-resources/src/gpu/square/bin.default/square.default
+    ../gem5-resources/src/gpu/square/bin.default/square.default
 ```
 
 ### 仿真过程详解
@@ -301,9 +302,9 @@ DRAM device capacity (16384 Mbytes) does not match the address range assigned (8
 | `src/python/gem5/prebuilt/viper/board.py` | ViperBoard：readfile 注入、驱动加载 |
 | `src/python/gem5/components/devices/gpus/amdgpu.py` | MI300X 设备定义 |
 | `src/dev/amdgpu/amdgpu_device.cc` | GPU 设备模型核心（cosim 分支修改） |
-| `gem5-resources/src/x86-ubuntu-gpu-ml/scripts/rocm-install.sh` | 磁盘镜像配置脚本 |
-| `gem5-resources/src/x86-ubuntu-gpu-ml/files/load_amdgpu.sh` | Guest 侧驱动加载脚本 |
-| `gem5-resources/src/x86-ubuntu-gpu-ml/x86-ubuntu-gpu-ml.pkr.hcl` | Packer 配置 |
+| `../gem5-resources/src/x86-ubuntu-gpu-ml/scripts/rocm-install.sh` | 磁盘镜像配置脚本 |
+| `../gem5-resources/src/x86-ubuntu-gpu-ml/files/load_amdgpu.sh` | Guest 侧驱动加载脚本 |
+| `../gem5-resources/src/x86-ubuntu-gpu-ml/x86-ubuntu-gpu-ml.pkr.hcl` | Packer 配置 |
 
 ## 版本矩阵
 

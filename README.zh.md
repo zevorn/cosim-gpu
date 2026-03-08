@@ -55,19 +55,19 @@ docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     -e PYTHONPATH=/usr/lib/python3.12/lib-dynload \
     ghcr.io/gem5/gpu-fs:latest \
     bash -c "scons build/VEGA_X86/gem5.opt -j4 GOLD_LINKER=True --linker=gold"
+cd ..
 
 # 3. 构建运行时 Docker 镜像
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
 # 4. 编译 QEMU
-cd ../qemu
+cd qemu
 mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
 cd ../..
 
 # 5. 构建磁盘镜像（Ubuntu 24.04 + ROCm 7.0）
-cd gem5
 ./scripts/run_mi300x_fs.sh build-disk
 
 # 6. 启动联合仿真
@@ -122,6 +122,7 @@ cosim/
 ├── qemu/                    # QEMU 模拟器（子模块，cosim-gpu 分支）
 │   ├── hw/misc/mi300x_gem5.c      # mi300x-gem5 PCIe 设备
 │   └── include/hw/misc/mi300x_gem5.h
+├── gem5-resources/          # 磁盘镜像、内核、GPU 应用（子模块）
 ├── scripts/                 # 构建和启动脚本
 │   ├── cosim_launch.sh      # cosim 一键启动脚本
 │   ├── run_mi300x_fs.sh     # 编排脚本

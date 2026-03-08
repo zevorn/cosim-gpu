@@ -19,7 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COSIM_DIR="$(dirname "$SCRIPT_DIR")"
 GEM5_DIR="${COSIM_DIR}/gem5"
-RESOURCES_DIR="${GEM5_DIR}/gem5-resources"
+RESOURCES_DIR="${COSIM_DIR}/gem5-resources"
 
 GEM5_BIN="${GEM5_DIR}/build/VEGA_X86/gem5.opt"
 GEM5_CONFIG="${GEM5_DIR}/configs/example/gpufs/mi300_cosim.py"

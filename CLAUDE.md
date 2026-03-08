@@ -125,4 +125,4 @@ python3 scripts/cosim_test_client.py /tmp/gem5-mi300x.sock
   Commit tags must match `MAINTAINERS.yaml` (use `dev-amdgpu:`, `configs:`, `dev:`).
 - QEMU: checkpatch.pl enforces line length (<90 chars) and style.
 - Top-level cosim: no hooks; standard git commit.
-- Signed-off-by: `Chao Liu <chao.liu.zevorn@gmail.com>`
+- Signed-off-by: derive from `git config user.name` and `git config user.email`.

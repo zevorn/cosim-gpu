@@ -57,11 +57,11 @@
 **QEMU 侧** (`mi300x_gem5.c:mi300x_gem5_realize`)：
 
 ```c
-// 打开共享内存文件
+// Open shared memory file
 fd = open(s->shmem_path, O_RDWR | O_CREAT, 0666);  // "/dev/shm/mi300x-vram"
 ftruncate(fd, vram_size);                             // 16 GiB
 
-// 创建 BAR0 内存区域，直接映射到共享文件
+// Create BAR0 memory region mapped directly to the shared file
 memory_region_init_ram_from_fd(&s->vram_bar, obj, "mi300x-vram",
                                s->vram_size, RAM_SHARED, fd, 0, &err);
 pci_register_bar(pdev, MI300X_VRAM_BAR,
@@ -76,7 +76,7 @@ shmemFd = shm_open(shmemPath.c_str(), O_CREAT | O_RDWR, 0666);
 ftruncate(shmemFd, vramSize);
 shmemPtr = mmap(nullptr, vramSize, PROT_READ | PROT_WRITE, MAP_SHARED, shmemFd, 0);
 
-// 关键：将共享指针传递给 GART 翻译器
+// Key: pass the shared pointer to the GART translator
 gpuDevice->getVM().vramShmemPtr = (uint8_t *)shmemPtr;
 gpuDevice->getVM().vramShmemSize = vramSize;
 ```
@@ -165,17 +165,17 @@ GTT 页面存在于 Guest RAM 中。Guest RAM 已经通过 `/dev/shm/cosim-guest
 
 ```
 amdgpu driver (guest)
-  │
-  ├─ amdgpu_gart_map(): 计算 PTE 值
-  │   pte = (phys_addr >> 12) << 12 | flags
-  │
-  ├─ 写入 BAR0 + ptBase + (gpu_page * 8)
-  │   │
-  │   └─ QEMU BAR0 = mmap of /dev/shm/mi300x-vram
-  │       └─ 数据立即出现在共享内存中
-  │
-  └─ TLB invalidate: 写 VM_INVALIDATE_ENG17 寄存器
-      └─ MMIO → socket → gem5 → invalidateTLBs()
+  |
+  +- amdgpu_gart_map(): compute PTE value
+  |   pte = (phys_addr >> 12) << 12 | flags
+  |
+  +- write to BAR0 + ptBase + (gpu_page * 8)
+  |   |
+  |   +- QEMU BAR0 = mmap of /dev/shm/mi300x-vram
+  |       +- data immediately appears in shared memory
+  |
+  +- TLB invalidate: write VM_INVALIDATE_ENG17 register
+      +- MMIO -> socket -> gem5 -> invalidateTLBs()
 ```
 
 ### 5.2 gem5 读取 GART PTE
@@ -183,18 +183,18 @@ amdgpu driver (guest)
 ```cpp
 // amdgpu_vm.cc: GARTTranslationGen::translate()
 
-// Step 1: 计算 PTE 在 VRAM 中的偏移
+// Step 1: compute PTE offset within VRAM
 gart_addr = bits(transformedAddr, 63, 12);  // GPU VA page number
 pte_table_offset = gart_addr - (ptStart * 8);
 
-// Step 2: 从共享 VRAM 直接读取 PTE（零拷贝）
+// Step 2: read PTE directly from shared VRAM (zero-copy)
 pte_vram_offset = gartBase() + pte_table_offset;
 memcpy(&pte, vramShmemPtr + pte_vram_offset, sizeof(uint64_t));
 
-// Step 3: 提取物理地址
+// Step 3: extract physical address
 if (pte != 0) {
     paddr = (bits(pte, 47, 12) << 12) | bits(vaddr, 11, 0);
-    //  paddr 指向 Guest RAM（GTT 页）或 VRAM
+    //  paddr points to Guest RAM (GTT page) or VRAM
 }
 ```
 
@@ -202,14 +202,14 @@ if (pte != 0) {
 
 ```
 63    52 51  48 47              12 11  6 5  2 1   0
-┌───────┬──────┬─────────────────┬──────┬────┬───┬───┐
-│ Flags │ BlkF │ Physical Page   │ Rsvd │Frag│Sys│ V │
-│       │      │ (PA >> 12)      │      │    │   │   │
-└───────┴──────┴─────────────────┴──────┴────┴───┴───┘
++-------+------+-----------------+------+----+---+---+
+| Flags | BlkF | Physical Page   | Rsvd |Frag|Sys| V |
+|       |      | (PA >> 12)      |      |    |   |   |
++-------+------+-----------------+------+----+---+---+
 
-Bit 0: Valid     — PTE 有效
-Bit 1: System    — 1=系统内存(Guest RAM), 0=本地 VRAM
-Bit 47:12        — 物理页号
+Bit 0: Valid     -- PTE is valid
+Bit 1: System   -- 1=system memory (Guest RAM), 0=local VRAM
+Bit 47:12       -- physical page number
 ```
 
 ### 5.4 地址分类
@@ -217,18 +217,18 @@ Bit 47:12        — 物理页号
 GART 翻译得到物理地址后，gem5 需要判断该地址指向哪里：
 
 ```
-物理地址 paddr
-  │
-  ├─ 在 fbBase ~ fbTop 范围内？
-  │   └─ YES → VRAM 地址
-  │       └─ 直接通过 vramShmemPtr 访问（零拷贝）
-  │
-  ├─ 在 sysAddrL ~ sysAddrH 范围内？
-  │   └─ YES → Guest RAM 地址 (GTT 页面)
-  │       └─ 通过 socket DMA 协议访问
-  │
-  └─ 都不是？
-      └─ Sink（paddr=0, 安全丢弃）
+Physical address paddr
+  |
+  +- Within fbBase ~ fbTop range?
+  |   +- YES -> VRAM address
+  |       +- Access directly via vramShmemPtr (zero-copy)
+  |
+  +- Within sysAddrL ~ sysAddrH range?
+  |   +- YES -> Guest RAM address (GTT page)
+  |       +- Access via socket DMA protocol
+  |
+  +- Neither?
+      +- Sink (paddr=0, safely discarded)
 ```
 
 ## 6. DMA 流程
@@ -236,44 +236,44 @@ GART 翻译得到物理地址后，gem5 需要判断该地址指向哪里：
 ### 6.1 gem5 读取 Guest RAM（读 ring buffer / fence）
 
 ```
-gem5 GPU 模型 (PM4/SDMA/IH)
-  │
-  │  需要读取 Guest RAM 中的 ring buffer 命令
-  │
-  ▼ cosimBridge->sendDmaRead(guestPhysAddr, length)
-  │
-  ├─ 构造 DmaRead 消息 (32 字节头)
-  │   { type=DmaRead, addr=guestPhysAddr, data=length }
-  │
-  ├─ sendAll(eventFd, &msg, 32)        ──→  QEMU event thread
-  │                                           │
-  │                                           ├─ pci_dma_read(addr, buf, len)
-  │                                           │  (从 /dev/shm/cosim-guest-ram 读取)
-  │                                           │
-  │                                           ├─ sendAll(eventFd, &resp, 32)
-  │  ←──────────────────────────────────────  ├─ sendAll(eventFd, data, len)
-  │
-  └─ memcpy(dest, recvBuf, length)     // 数据到达 gem5
+gem5 GPU model (PM4/SDMA/IH)
+  |
+  |  Needs to read ring buffer commands from Guest RAM
+  |
+  v cosimBridge->sendDmaRead(guestPhysAddr, length)
+  |
+  +- Construct DmaRead message (32-byte header)
+  |   { type=DmaRead, addr=guestPhysAddr, data=length }
+  |
+  +- sendAll(eventFd, &msg, 32)        -->  QEMU event thread
+  |                                           |
+  |                                           +- pci_dma_read(addr, buf, len)
+  |                                           |  (reads from /dev/shm/cosim-guest-ram)
+  |                                           |
+  |                                           +- sendAll(eventFd, &resp, 32)
+  |  <------------------------------------------+- sendAll(eventFd, data, len)
+  |
+  +- memcpy(dest, recvBuf, length)     // data arrives at gem5
 ```
 
 ### 6.2 gem5 写入 Guest RAM（写 fence / IH cookie）
 
 ```
-gem5 GPU 模型
-  │
-  │  需要写入 fence 值到 Guest RAM
-  │
-  ▼ cosimBridge->sendDmaWrite(guestPhysAddr, length, data)
-  │
-  ├─ 构造 DmaWrite 消息 + 数据载荷
-  │   { type=DmaWrite, addr=guestPhysAddr, data=length, size=length }
-  │
-  ├─ sendAll(eventFd, &msg, 32)        ──→  QEMU event thread
-  ├─ sendAll(eventFd, data, length)    ──→    │
-  │                                           ├─ pci_dma_write(addr, buf, len)
-  │                                           │  (写入 /dev/shm/cosim-guest-ram)
-  │                                           │
-  └─ 完成（DMA 写入不等待响应）               └─ 驱动可立即看到数据
+gem5 GPU model
+  |
+  |  Needs to write fence value to Guest RAM
+  |
+  v cosimBridge->sendDmaWrite(guestPhysAddr, length, data)
+  |
+  +- Construct DmaWrite message + data payload
+  |   { type=DmaWrite, addr=guestPhysAddr, data=length, size=length }
+  |
+  +- sendAll(eventFd, &msg, 32)        -->  QEMU event thread
+  +- sendAll(eventFd, data, length)    -->      |
+  |                                           +- pci_dma_write(addr, buf, len)
+  |                                           |  (writes to /dev/shm/cosim-guest-ram)
+  |                                           |
+  +- Done (DMA writes don't wait for response)  +- Driver can see data immediately
 ```
 
 ### 6.3 为什么 Guest RAM DMA 走 Socket 而非直接 mmap
@@ -300,14 +300,14 @@ gem5 GPU 模型
 
 if (pte == 0) {
     if (origAddr < vramShmemSize && vramShmemPtr) {
-        // VRAM 地址 → 映射到 sink (paddr=0)
+        // VRAM address -> map to sink (paddr=0)
         range.paddr = 0;
         warn_once("GART: VRAM address mapped to sink — "
                   "VRAM write-backs are no-ops in cosim");
     } else if (vramShmemPtr) {
-        // 未映射的 GART 页 → sink
+        // Unmapped GART page -> sink
         range.paddr = 0;
-        warn_once("GART cosim: unmapped page → sink");
+        warn_once("GART cosim: unmapped page -> sink");
     }
 }
 ```
@@ -324,29 +324,29 @@ if (pte == 0) {
 
 ```
 1. hipMalloc(&d_a, N*sizeof(int))
-   驱动 → 在 VRAM 中分配 buffer
-   写入 GART PTE 到 shared VRAM (BAR0)
+   Driver -> allocates buffer in VRAM
+   Writes GART PTEs to shared VRAM (BAR0)
 
 2. hipMemcpy(d_a, h_a, N*sizeof(int), hipMemcpyHostToDevice)
-   驱动 → 构造 SDMA copy 命令 → 写入 Guest RAM (ring buffer)
-   驱动 → 写 Doorbell → QEMU BAR2 → socket → gem5
-   gem5 → DMA 读取 ring buffer (Guest RAM via socket)
-   gem5 → 解析 SDMA 命令 → GART 翻译源地址 → Guest RAM
-   gem5 → DMA 读取源数据 (Guest RAM via socket)
-   gem5 → 写入 VRAM 目标地址 (shared memory 直接写)
+   Driver -> constructs SDMA copy command -> writes to Guest RAM (ring buffer)
+   Driver -> writes Doorbell -> QEMU BAR2 -> socket -> gem5
+   gem5 -> DMA reads ring buffer (Guest RAM via socket)
+   gem5 -> parses SDMA command -> GART translates source address -> Guest RAM
+   gem5 -> DMA reads source data (Guest RAM via socket)
+   gem5 -> writes to VRAM destination (shared memory direct write)
 
 3. kernel<<<1, N>>>(d_a, d_b, d_c, N)
-   驱动 → 构造 PM4 dispatch 命令 → 写入 Guest RAM (ring buffer)
-   驱动 → 写 Doorbell → gem5
-   gem5 → DMA 读取 PM4 命令 (Guest RAM via socket)
-   gem5 → 启动 shader 执行
-   gem5 → shader 读写 VRAM (shared memory 直接访问)
-   gem5 → 完成后写 fence (Guest RAM via socket DMA write)
-   gem5 → 发送 MSI-X 中断 (socket event)
+   Driver -> constructs PM4 dispatch command -> writes to Guest RAM (ring buffer)
+   Driver -> writes Doorbell -> gem5
+   gem5 -> DMA reads PM4 command (Guest RAM via socket)
+   gem5 -> launches shader execution
+   gem5 -> shader reads/writes VRAM (shared memory direct access)
+   gem5 -> writes fence on completion (Guest RAM via socket DMA write)
+   gem5 -> sends MSI-X interrupt (socket event)
 
 4. hipDeviceSynchronize()
-   驱动 → 轮询 fence 值（直到 Guest RAM 中的值匹配）
-   └─ fence 由 gem5 通过 DMA write 写入
+   Driver -> polls fence value (until Guest RAM value matches)
+   +- fence written by gem5 via DMA write
 ```
 
 ## 9. 已知限制

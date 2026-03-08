@@ -200,6 +200,7 @@ Detailed technical documentation is available in [`docs/`](docs/):
 - [GPU FS Guide](docs/en/gpu-fs-guide.md) — gem5 standalone GPU full-system simulation
 - [Guest GPU Init](docs/en/cosim-guest-gpu-init.md) — driver initialization flow
 - [Debugging Pitfalls](docs/en/cosim-debugging-pitfalls.md) — common issues and solutions
+- [Development Story](docs/en/cosim-dev-story.md) — how this project was built in one day with Claude
 
 ## License
 

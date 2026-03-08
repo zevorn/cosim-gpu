@@ -169,6 +169,7 @@ cosim/
 - [GPU 全系统仿真指南](docs/zh/gpu-fs-guide.md) — gem5 单机 GPU FS 仿真复现
 - [Guest GPU 初始化流程](docs/zh/cosim-guest-gpu-init.md) — 驱动加载与设备初始化
 - [调试踩坑记录](docs/zh/cosim-debugging-pitfalls.md) — 常见问题与解决方案
+- [开发故事](docs/zh/cosim-dev-story.md) — 一天时间用 Claude 构建 cosim-gpu 的全过程
 
 ## 版本矩阵
 

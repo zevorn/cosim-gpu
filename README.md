@@ -8,7 +8,7 @@ on a simulated GPU without physical hardware.
 
 ```
 ┌─────────────────────────────┐       ┌────────────────────────────┐
-│  QEMU  (Q35 + KVM)         │       │  gem5  (Docker)            │
+│  QEMU  (Q35 + KVM)          │       │  gem5  (Docker)            │
 │  ┌───────────────────────┐  │       │  ┌──────────────────────┐  │
 │  │ Guest Linux           │  │       │  │ MI300X GPU Model     │  │
 │  │ amdgpu driver         │  │       │  │  Shader / CU / SDMA  │  │
@@ -45,12 +45,30 @@ on a simulated GPU without physical hardware.
 
 ## Quick Start
 
+### Option A: Script-based
+
+```bash
+git clone --recurse-submodules git@github.com:zevorn/cosim.git
+cd cosim
+
+# Build gem5 + QEMU + disk image (~2h total, needs KVM + Docker + ~60GB disk)
+GEM5_BUILD_IMAGE=ghcr.io/gem5/gpu-fs:latest ./scripts/run_mi300x_fs.sh build-all
+
+# Build runtime Docker image (for running gem5 inside Docker)
+cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
+
+# Launch co-simulation
+./scripts/cosim_launch.sh
+```
+
+### Option B: Manual step-by-step
+
 ```bash
 # 1. Clone with submodules
 git clone --recurse-submodules git@github.com:zevorn/cosim.git
 cd cosim
 
-# 2. Build gem5 (in Docker)
+# 2. Build gem5 (in Docker, ~30min; use -j1 if OOM-killed during linking)
 cd gem5
 docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     -e PYTHONPATH=/usr/lib/python3.12/lib-dynload \
@@ -58,20 +76,25 @@ docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     bash -c "scons build/VEGA_X86/gem5.opt -j4 GOLD_LINKER=True --linker=gold"
 cd ..
 
-# 3. Build runtime Docker image
+# 3. Build runtime Docker image (for running gem5 inside Docker)
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
-# 4. Build QEMU
-cd qemu
-mkdir -p build && cd build
+# 4. Build QEMU (with mi300x-gem5 cosim PCIe device)
+cd qemu && mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
 cd ../..
 
-# 5. Build disk image (Ubuntu 24.04 + ROCm 7.0)
+# 5. Pre-build m5 utility (recommended — avoids git clone inside guest VM)
+docker run --rm -v "$(pwd)/gem5:/gem5" -w /gem5 \
+    ghcr.io/gem5/gpu-fs:latest \
+    bash -c "cd util/m5 && scons build/x86/out/m5"
+cp gem5/util/m5/build/x86/out/m5 gem5-resources/src/x86-ubuntu-gpu-ml/files/
+
+# 6. Build disk image (Ubuntu 24.04 + ROCm 7.0, ~40min, needs KVM + ~60GB disk)
 ./scripts/run_mi300x_fs.sh build-disk
 
-# 6. Launch co-simulation
+# 7. Launch co-simulation
 ./scripts/cosim_launch.sh
 ```
 

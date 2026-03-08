@@ -7,21 +7,21 @@
 
 ```
 ┌─────────────────────────────┐       ┌────────────────────────────┐
-│  QEMU  (Q35 + KVM)         │       │  gem5  (Docker 容器)        │
+│  QEMU  (Q35 + KVM)          │       │  gem5  (Docker)            │
 │  ┌───────────────────────┐  │       │  ┌──────────────────────┐  │
-│  │ Guest Linux           │  │       │  │ MI300X GPU 模型      │  │
-│  │ amdgpu 驱动            │  │       │  │  Shader / CU / SDMA  │  │
-│  │ ROCm 7.0 / HIP        │  │       │  │  PM4 / Ruby 缓存     │  │
+│  │ Guest Linux           │  │       │  │ MI300X GPU Model     │  │
+│  │ amdgpu driver         │  │       │  │  Shader / CU / SDMA  │  │
+│  │ ROCm 7.0 / HIP        │  │       │  │  PM4 / Ruby caches   │  │
 │  └───────────┬───────────┘  │       │  └──────────┬───────────┘  │
 │  ┌───────────▼───────────┐  │       │  ┌──────────▼───────────┐  │
-│  │ mi300x-gem5 PCIe 设备  │◄────────►│  │ MI300XGem5Cosim 桥接 │  │
+│  │ mi300x-gem5 PCIe dev  │◄────────►│  │ MI300XGem5Cosim      │  │
 │  └───────────────────────┘  │ Unix  │  └──────────────────────┘  │
 │                             │Socket │                            │
 └─────────────────────────────┘       └────────────────────────────┘
         │                                       │
         ▼                                       ▼
   /dev/shm/cosim-guest-ram            /dev/shm/mi300x-vram
-  (共享 Guest 物理内存)                (共享 GPU VRAM)
+  (shared guest RAM)                  (shared GPU VRAM)
 ```
 
 ## 功能特性
@@ -44,12 +44,30 @@
 
 ## 快速开始
 
+### 方案 A：脚本一键构建
+
+```bash
+git clone --recurse-submodules git@github.com:zevorn/cosim.git
+cd cosim
+
+# 构建 gem5 + QEMU + 磁盘镜像（总计约 2 小时，需要 KVM + Docker + 约 60GB 磁盘空间）
+GEM5_BUILD_IMAGE=ghcr.io/gem5/gpu-fs:latest ./scripts/run_mi300x_fs.sh build-all
+
+# 构建运行时 Docker 镜像（用于在 Docker 内运行 gem5）
+cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
+
+# 启动联合仿真
+./scripts/cosim_launch.sh
+```
+
+### 方案 B：手动分步构建
+
 ```bash
 # 1. 克隆仓库（含子模块）
 git clone --recurse-submodules git@github.com:zevorn/cosim.git
 cd cosim
 
-# 2. 编译 gem5（Docker 内）
+# 2. 编译 gem5（Docker 内，约 30 分钟；链接阶段 OOM 可改用 -j1）
 cd gem5
 docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     -e PYTHONPATH=/usr/lib/python3.12/lib-dynload \
@@ -57,20 +75,25 @@ docker run --rm -v "$(pwd):/gem5" -w /gem5 \
     bash -c "scons build/VEGA_X86/gem5.opt -j4 GOLD_LINKER=True --linker=gold"
 cd ..
 
-# 3. 构建运行时 Docker 镜像
+# 3. 构建运行时 Docker 镜像（用于在 Docker 内运行 gem5）
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
-# 4. 编译 QEMU
-cd qemu
-mkdir -p build && cd build
+# 4. 编译 QEMU（含 mi300x-gem5 cosim PCIe 设备）
+cd qemu && mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
 cd ../..
 
-# 5. 构建磁盘镜像（Ubuntu 24.04 + ROCm 7.0）
+# 5. 预编译 m5 工具（推荐 - 避免构建磁盘镜像时在 Guest 内 git clone）
+docker run --rm -v "$(pwd)/gem5:/gem5" -w /gem5 \
+    ghcr.io/gem5/gpu-fs:latest \
+    bash -c "cd util/m5 && scons build/x86/out/m5"
+cp gem5/util/m5/build/x86/out/m5 gem5-resources/src/x86-ubuntu-gpu-ml/files/
+
+# 6. 构建磁盘镜像（Ubuntu 24.04 + ROCm 7.0，约 40 分钟，需要 KVM + 约 60GB 磁盘空间）
 ./scripts/run_mi300x_fs.sh build-disk
 
-# 6. 启动联合仿真
+# 7. 启动联合仿真
 ./scripts/cosim_launch.sh
 ```
 

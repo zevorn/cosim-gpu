@@ -9,4 +9,4 @@
 [submodule "gem5-resources"]
 	path = gem5-resources
 	url = git@github.com:zevorn/gem5-resources.git
-	branch = stable
+	branch = cosim-gpu

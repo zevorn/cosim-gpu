@@ -42,6 +42,7 @@ NUM_CUS="40"
 GEM5_DEBUG=""
 GEM5_TIMEOUT=120
 QEMU_TRACE=""
+SHARE_DIR=""
 
 # ---- Colors ----
 
@@ -77,6 +78,7 @@ Options:
   --num-cus N             Compute units (default: 40)
   --gem5-debug FLAGS      gem5 debug flags (e.g. MI300XCosim,AMDGPUDevice)
   --qemu-trace EVENTS     QEMU trace events (e.g. mi300x_gem5_*)
+  --share-dir PATH        Share host dir with guest via 9p (mount tag: cosim_share)
   --timeout SECS          gem5 init timeout (default: 120)
   -h, --help              Show this help
 EOF
@@ -97,6 +99,7 @@ while [[ $# -gt 0 ]]; do
         --num-cus)       NUM_CUS="$2";          shift 2 ;;
         --gem5-debug)    GEM5_DEBUG="$2";       shift 2 ;;
         --qemu-trace)    QEMU_TRACE="$2";       shift 2 ;;
+        --share-dir)     SHARE_DIR="$2";        shift 2 ;;
         --timeout)       GEM5_TIMEOUT="$2";     shift 2 ;;
         -h|--help)       usage ;;
         *)               echo "Unknown option: $1"; usage ;;
@@ -151,7 +154,7 @@ rm -f "$SOCKET_PATH" 2>/dev/null || true
 step "Starting gem5 MI300X GPU model in Docker..."
 
 GEM5_DOCKER_CMD=(
-    docker run -d
+    docker run -d --rm
     --name "$GEM5_CONTAINER"
     -v "${GEM5_DIR}:/gem5"
     -v /tmp:/tmp
@@ -254,6 +257,12 @@ echo "Manual setup (if service is not installed):"
 echo "  dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128"
 echo "  modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0"
 echo ""
+if [[ -n "$SHARE_DIR" ]]; then
+    echo "Shared directory: $SHARE_DIR"
+    echo "  In guest, run:"
+    echo "  mount -t 9p -o trans=virtio,version=9p2000.L cosim_share /mnt"
+    echo ""
+fi
 echo "Press Ctrl-A X to quit QEMU."
 echo "============================================================"
 echo ""
@@ -278,6 +287,14 @@ QEMU_CMD=(
 if [[ -n "$QEMU_TRACE" ]]; then
     QEMU_CMD+=(-trace "$QEMU_TRACE")
     info "QEMU trace: $QEMU_TRACE"
+fi
+
+if [[ -n "$SHARE_DIR" ]]; then
+    QEMU_CMD+=(
+        -fsdev "local,id=cosim_fs,path=${SHARE_DIR},security_model=none"
+        -device "virtio-9p-pci,fsdev=cosim_fs,mount_tag=cosim_share"
+    )
+    info "Sharing host dir: $SHARE_DIR (mount: mount -t 9p -o trans=virtio cosim_share /mnt)"
 fi
 
 # Run QEMU in foreground with interactive serial console

@@ -1,3 +1,5 @@
+[English](../en/cosim-debugging-pitfalls.md)
+
 # MI300X 协同仿真：调试陷阱与修复
 
 本文档记录了在 QEMU+gem5 MI300X 协同仿真启动过程中遇到并修复的 bug，包含一些不易察觉的根因分析。

@@ -153,13 +153,9 @@ cosim/
 │   ├── cosim_guest_setup.sh # guest-side GPU setup
 │   ├── cosim_test_client.py # socket test client
 │   └── Dockerfile.run       # gem5 runtime Docker image
-├── docs/                    # technical documentation (Chinese)
-│   ├── cosim-usage-guide.md           # full usage guide
-│   ├── cosim-technical-notes.md       # architecture & fixes
-│   ├── mi300x-memory-management.md    # GPU memory & address translation
-│   ├── gpu-fs-guide.md               # gem5 GPU FS setup
-│   ├── cosim-guest-gpu-init.md        # guest GPU init flow
-│   └── cosim-debugging-pitfalls.md    # debugging notes
+├── docs/                    # technical documentation (zh + en)
+│   ├── en/                            # English
+│   └── zh/                            # Chinese
 ├── LICENSE                  # Apache 2.0
 └── README.md                # this file
 ```
@@ -196,14 +192,14 @@ Communication: Unix domain socket (sync MMIO) + event thread (async IRQ/DMA).
 
 ## Documentation
 
-Detailed technical documentation is available in [`docs/`](docs/) (Chinese):
+Detailed technical documentation is available in [`docs/`](docs/):
 
-- [Complete Usage Guide](docs/cosim-usage-guide.md) — build, run, test
-- [Technical Notes](docs/cosim-technical-notes.md) — architecture, pitfalls, fixes
-- [MI300X Memory Management](docs/mi300x-memory-management.md) — GART, address translation
-- [GPU FS Guide](docs/gpu-fs-guide.md) — gem5 standalone GPU full-system simulation
-- [Guest GPU Init](docs/cosim-guest-gpu-init.md) — driver initialization flow
-- [Debugging Pitfalls](docs/cosim-debugging-pitfalls.md) — common issues and solutions
+- [Complete Usage Guide](docs/en/cosim-usage-guide.md) — build, run, test
+- [Technical Notes](docs/en/cosim-technical-notes.md) — architecture, pitfalls, fixes
+- [MI300X Memory Management](docs/en/mi300x-memory-management.md) — GART, address translation
+- [GPU FS Guide](docs/en/gpu-fs-guide.md) — gem5 standalone GPU full-system simulation
+- [Guest GPU Init](docs/en/cosim-guest-gpu-init.md) — driver initialization flow
+- [Debugging Pitfalls](docs/en/cosim-debugging-pitfalls.md) — common issues and solutions
 
 ## License
 

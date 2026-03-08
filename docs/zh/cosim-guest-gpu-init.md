@@ -1,3 +1,5 @@
+[English](../en/cosim-guest-gpu-init.md)
+
 # MI300X 协同仿真：客户机 GPU 初始化指南
 
 ## 概述

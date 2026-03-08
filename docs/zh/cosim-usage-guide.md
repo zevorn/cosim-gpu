@@ -1,3 +1,5 @@
+[English](../en/cosim-usage-guide.md)
+
 # QEMU + gem5 MI300X 联合仿真使用指南
 
 从编译到运行 HIP GPU 计算的完整流程。

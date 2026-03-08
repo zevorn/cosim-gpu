@@ -1,3 +1,5 @@
+[English](../en/cosim-technical-notes.md)
+
 # QEMU + gem5 MI300X 协同仿真：技术笔记
 
 本文档总结了 QEMU + gem5 MI300X 协同仿真系统的架构、实现细节、已解决的问题和已知限制。

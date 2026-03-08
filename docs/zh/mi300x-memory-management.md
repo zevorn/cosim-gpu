@@ -1,3 +1,5 @@
+[English](../en/mi300x-memory-management.md)
+
 # MI300X 内存管理、地址转换与映射
 
 本文档描述了 AMD MI300X GPU 在独立 gem5 仿真和 QEMU+gem5 协同仿真环境中如何管理内存地址。

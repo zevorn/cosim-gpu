@@ -152,13 +152,9 @@ cosim/
 │   ├── cosim_guest_setup.sh # Guest 侧 GPU 设置脚本
 │   ├── cosim_test_client.py # Socket 测试客户端
 │   └── Dockerfile.run       # gem5 运行时 Docker 镜像
-├── docs/                    # 技术文档（中文）
-│   ├── cosim-usage-guide.md           # 完整使用指南
-│   ├── cosim-technical-notes.md       # 架构与修复记录
-│   ├── mi300x-memory-management.md    # GPU 内存管理与地址翻译
-│   ├── gpu-fs-guide.md               # gem5 GPU 全系统仿真指南
-│   ├── cosim-guest-gpu-init.md        # Guest 侧 GPU 初始化流程
-│   └── cosim-debugging-pitfalls.md    # 调试踩坑记录
+├── docs/                    # 技术文档（中文 + 英文）
+│   ├── en/                            # English
+│   └── zh/                            # 中文
 ├── LICENSE                  # Apache 2.0
 └── README.md                # 英文文档
 ```
@@ -167,12 +163,12 @@ cosim/
 
 详细技术文档位于 [`docs/`](docs/) 目录下：
 
-- [完整使用指南](docs/cosim-usage-guide.md) — 从编译到运行 HIP 测试的全流程
-- [技术笔记](docs/cosim-technical-notes.md) — 架构设计、踩坑记录、修复方案
-- [MI300X 内存管理](docs/mi300x-memory-management.md) — GART、地址翻译、内存映射
-- [GPU 全系统仿真指南](docs/gpu-fs-guide.md) — gem5 单机 GPU FS 仿真复现
-- [Guest GPU 初始化流程](docs/cosim-guest-gpu-init.md) — 驱动加载与设备初始化
-- [调试踩坑记录](docs/cosim-debugging-pitfalls.md) — 常见问题与解决方案
+- [完整使用指南](docs/zh/cosim-usage-guide.md) — 从编译到运行 HIP 测试的全流程
+- [技术笔记](docs/zh/cosim-technical-notes.md) — 架构设计、踩坑记录、修复方案
+- [MI300X 内存管理](docs/zh/mi300x-memory-management.md) — GART、地址翻译、内存映射
+- [GPU 全系统仿真指南](docs/zh/gpu-fs-guide.md) — gem5 单机 GPU FS 仿真复现
+- [Guest GPU 初始化流程](docs/zh/cosim-guest-gpu-init.md) — 驱动加载与设备初始化
+- [调试踩坑记录](docs/zh/cosim-debugging-pitfalls.md) — 常见问题与解决方案
 
 ## 版本矩阵
 

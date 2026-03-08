@@ -11,7 +11,9 @@ cosim/                        # top-level (this repo)
 │   └── hw/misc/mi300x_gem5.c
 ├── gem5-resources/           # submodule (stable branch, gem5/gem5-resources)
 ├── scripts/                  # build & launch scripts
-└── docs/                     # technical docs (Chinese)
+└── docs/                     # technical docs (zh + en)
+    ├── zh/                   # Chinese
+    └── en/                   # English
 ```
 
 ## Key Source Files
@@ -126,3 +128,11 @@ python3 scripts/cosim_test_client.py /tmp/gem5-mi300x.sock
 - QEMU: checkpatch.pl enforces line length (<90 chars) and style.
 - Top-level cosim: no hooks; standard git commit.
 - Signed-off-by: derive from `git config user.name` and `git config user.email`.
+
+## Documentation Rules
+
+- All docs under `docs/` must have both Chinese (`docs/zh/`) and English (`docs/en/`) versions.
+- Each doc must start with a language switch link on the first line:
+  - Chinese: `[English](../en/<filename>.md)`
+  - English: `[中文](../zh/<filename>.md)`
+- When adding or modifying a doc, always update both language versions.

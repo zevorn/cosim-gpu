@@ -1,3 +1,5 @@
+[English](../en/gpu-fs-guide.md)
+
 # gem5 MI300X 全系统 GPU 仿真复现指南
 
 从零开始复现 cosim 分支上 AMD Instinct MI300X 的全系统 GPU 仿真流程，

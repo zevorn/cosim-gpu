@@ -1,0 +1,4 @@
+FROM ghcr.io/gem5/gpu-fs:latest
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 \
+    && rm -rf /var/lib/apt/lists/*

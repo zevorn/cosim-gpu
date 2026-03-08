@@ -118,11 +118,16 @@ EOF
 cosim/
 ├── gem5/                    # gem5 仿真器（子模块，cosim-gpu 分支）
 │   ├── src/dev/amdgpu/      # MI300X GPU 设备模型和 cosim 桥接
-│   ├── configs/example/gpufs/mi300_cosim.py  # cosim 配置
-│   └── scripts/             # 构建和启动脚本
+│   └── configs/example/gpufs/mi300_cosim.py  # cosim 配置
 ├── qemu/                    # QEMU 模拟器（子模块，cosim-gpu 分支）
 │   ├── hw/misc/mi300x_gem5.c      # mi300x-gem5 PCIe 设备
 │   └── include/hw/misc/mi300x_gem5.h
+├── scripts/                 # 构建和启动脚本
+│   ├── cosim_launch.sh      # cosim 一键启动脚本
+│   ├── run_mi300x_fs.sh     # 编排脚本
+│   ├── cosim_guest_setup.sh # Guest 侧 GPU 设置脚本
+│   ├── cosim_test_client.py # Socket 测试客户端
+│   └── Dockerfile.run       # gem5 运行时 Docker 镜像
 ├── docs/                    # 技术文档（中文）
 │   ├── cosim-usage-guide.md           # 完整使用指南
 │   ├── cosim-technical-notes.md       # 架构与修复记录

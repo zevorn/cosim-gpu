@@ -98,8 +98,8 @@ int main() {
 
     print_summary("prefix_scan", failures, ms);
 
-    hipFree(d_input); hipFree(d_output);
-    hipFree(d_block_sums); hipFree(d_scanned_sums);
+    (void)hipFree(d_input); (void)hipFree(d_output);
+    (void)hipFree(d_block_sums); (void)hipFree(d_scanned_sums);
     free(h_input); free(h_output); free(h_ref);
     return failures;
 }

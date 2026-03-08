@@ -49,7 +49,7 @@ int main() {
 
     print_summary("vector_add", failures, ms);
 
-    hipFree(d_A); hipFree(d_B); hipFree(d_C);
+    (void)hipFree(d_A); (void)hipFree(d_B); (void)hipFree(d_C);
     free(h_A); free(h_B); free(h_C); free(h_ref);
     return failures;
 }

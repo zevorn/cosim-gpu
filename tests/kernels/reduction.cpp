@@ -79,7 +79,7 @@ int main() {
 
     print_summary("reduction", failures, ms);
 
-    hipFree(d_input); hipFree(d_partial); hipFree(d_result);
+    (void)hipFree(d_input); (void)hipFree(d_partial); (void)hipFree(d_result);
     free(h_input); free(h_partial);
     return failures;
 }

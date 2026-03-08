@@ -85,7 +85,7 @@ int main() {
 
     print_summary("transpose", failures, ms_smem);
 
-    hipFree(d_in); hipFree(d_out);
+    (void)hipFree(d_in); (void)hipFree(d_out);
     free(h_in); free(h_out_naive); free(h_out_smem); free(h_ref);
     return failures;
 }

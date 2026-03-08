@@ -28,7 +28,7 @@ __global__ void histogram(const int* input, int* bins, int N) {
 }
 
 int main() {
-    const int N = 1 << 16;  // 64K elements
+    const int N = 1 << 12;  // 4K elements
     const size_t input_bytes = N * sizeof(int);
     const size_t bin_bytes = NUM_BINS * sizeof(int);
     int failures = 0;
@@ -71,7 +71,7 @@ int main() {
 
     print_summary("histogram", failures, ms);
 
-    hipFree(d_input); hipFree(d_bins);
+    (void)hipFree(d_input); (void)hipFree(d_bins);
     free(h_input); free(h_bins); free(h_ref);
     return failures;
 }

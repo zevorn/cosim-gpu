@@ -3,12 +3,17 @@
 # QEMU + gem5 MI300X Co-simulation Launcher
 #
 # gem5 runs inside Docker (GPU-only, no kernel), QEMU runs on the host
-# with KVM.  QEMU boots the guest Linux and exposes an mi300x-gem5 PCIe
-# device that forwards MMIO/doorbell/DMA to gem5 via a Unix domain socket.
+# with KVM.  Two backends are supported:
+#
+#   vfio-user (default): Standard vfio-user protocol via libvfio-user.
+#     QEMU uses upstream vfio-user-pci — no custom QEMU code needed.
+#
+#   legacy: Custom cosim socket protocol with QEMU's mi300x-gem5 device.
 #
 # Usage:
-#   ./scripts/cosim_launch.sh                    # auto-detect paths
-#   ./scripts/cosim_launch.sh --gem5-debug MI300XCosim   # with debug
+#   ./scripts/cosim_launch.sh                              # vfio-user
+#   ./scripts/cosim_launch.sh --cosim-backend legacy       # legacy
+#   ./scripts/cosim_launch.sh --gem5-debug MI300XCosim      # with debug
 #   ./scripts/cosim_launch.sh --help
 # ==========================================================================
 
@@ -43,6 +48,7 @@ GEM5_DEBUG=""
 GEM5_TIMEOUT=120
 QEMU_TRACE=""
 SHARE_DIR=""
+COSIM_BACKEND="vfio-user"
 
 # ---- Colors ----
 
@@ -79,6 +85,7 @@ Options:
   --gem5-debug FLAGS      gem5 debug flags (e.g. MI300XCosim,AMDGPUDevice)
   --qemu-trace EVENTS     QEMU trace events (e.g. mi300x_gem5_*)
   --share-dir PATH        Share host dir with guest via 9p (mount tag: cosim_share)
+  --cosim-backend MODE    vfio-user (default) or legacy
   --timeout SECS          gem5 init timeout (default: 120)
   -h, --help              Show this help
 EOF
@@ -100,6 +107,7 @@ while [[ $# -gt 0 ]]; do
         --gem5-debug)    GEM5_DEBUG="$2";       shift 2 ;;
         --qemu-trace)    QEMU_TRACE="$2";       shift 2 ;;
         --share-dir)     SHARE_DIR="$2";        shift 2 ;;
+        --cosim-backend) COSIM_BACKEND="$2";   shift 2 ;;
         --timeout)       GEM5_TIMEOUT="$2";     shift 2 ;;
         -h|--help)       usage ;;
         *)               echo "Unknown option: $1"; usage ;;
@@ -179,6 +187,7 @@ GEM5_DOCKER_CMD+=(
     "--dgpu-mem-size=$VRAM_SIZE"
     "--num-compute-units=$NUM_CUS"
     "--mem-size=$HOST_MEM"
+    "--cosim-backend=$COSIM_BACKEND"
 )
 
 "${GEM5_DOCKER_CMD[@]}" >/dev/null
@@ -192,9 +201,15 @@ info "gem5 container '$GEM5_CONTAINER' started"
 step "Waiting for gem5 to initialize (timeout: ${GEM5_TIMEOUT}s)..."
 
 ELAPSED=0
+if [[ "$COSIM_BACKEND" == "vfio-user" ]]; then
+    READY_PATTERN="MI300XVfioUser: listening"
+else
+    READY_PATTERN="MI300XGem5Cosim: listening"
+fi
+
 while true; do
-    if docker logs "$GEM5_CONTAINER" 2>&1 | grep -q "MI300XGem5Cosim: listening"; then
-        info "gem5 cosim socket ready (${ELAPSED}s)"
+    if docker logs "$GEM5_CONTAINER" 2>&1 | grep -q "$READY_PATTERN"; then
+        info "gem5 cosim socket ready (${ELAPSED}s, backend=$COSIM_BACKEND)"
         break
     fi
 
@@ -223,10 +238,11 @@ done
 KCMDLINE="console=ttyS0,115200 root=/dev/vda1 drm_kms_helper.fbdev_emulation=0 modprobe.blacklist=amdgpu earlyprintk=serial,ttyS0,115200"
 VRAM_BYTES=$((16 * 1024 * 1024 * 1024))
 
-step "Starting QEMU (Q35 + KVM)..."
+step "Starting QEMU (Q35 + KVM, backend=$COSIM_BACKEND)..."
 
 echo "============================================================"
 echo "  Machine:    Q35 + KVM"
+echo "  Backend:    $COSIM_BACKEND"
 echo "  CPUs:       $HOST_CPUS"
 echo "  Memory:     $HOST_MEM"
 echo "  Disk:       $(basename "$DISK_IMAGE")"
@@ -266,7 +282,18 @@ QEMU_CMD=(
     -kernel "$KERNEL"
     -append "$KCMDLINE"
     -drive "file=$DISK_IMAGE,format=raw,if=virtio"
-    -device "mi300x-gem5,gem5-socket=$SOCKET_PATH,shmem-path=$SHMEM_FILE,vram-size=$VRAM_BYTES,romfile=$GPU_ROM"
+)
+
+if [[ "$COSIM_BACKEND" == "vfio-user" ]]; then
+    # Standard vfio-user protocol: QEMU's built-in vfio-user-pci device
+    # Socket param requires JSON object format for SocketAddress type
+    QEMU_CMD+=(-device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$SOCKET_PATH\"}}")
+else
+    # Legacy custom protocol: QEMU's mi300x-gem5 device
+    QEMU_CMD+=(-device "mi300x-gem5,gem5-socket=$SOCKET_PATH,shmem-path=$SHMEM_FILE,vram-size=$VRAM_BYTES,romfile=$GPU_ROM")
+fi
+
+QEMU_CMD+=(
     -nographic
     -no-reboot
 )

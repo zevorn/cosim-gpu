@@ -15,9 +15,9 @@ on a simulated GPU without physical hardware.
 |  | ROCm 7.0 / HIP        |  |       |  |  PM4 / Ruby caches   |  |
 |  +----------+------------+  |       |  +---------+------------+  |
 |  +----------v------------+  |       |  +---------v------------+  |
-|  | mi300x-gem5 PCIe dev  |<-------->|  | MI300XGem5Cosim      |  |
-|  +-----------------------+  | Unix  |  +----------------------+  |
-|                             |Socket |                            |
+|  | vfio-user-pci         |<-------->|  | MI300XVfioUser       |  |
+|  | (QEMU built-in)       |  |vfio-  |  | (libvfio-user)       |  |
+|  +-----------------------+  |user   |  +----------------------+  |
 +-----------------------------+       +----------------------------+
         |                                       |
         v                                       v
@@ -79,7 +79,7 @@ cd ..
 # 3. Build runtime Docker image (for running gem5 inside Docker)
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
-# 4. Build QEMU (with mi300x-gem5 cosim PCIe device)
+# 4. Build QEMU (stock build; vfio-user-pci is built-in since QEMU 10.0)
 cd qemu && mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
@@ -142,11 +142,10 @@ EOF
 ```
 cosim/
 |-- gem5/                    # gem5 simulator (submodule, cosim-gpu branch)
-|   |-- src/dev/amdgpu/      # MI300X GPU device model & cosim bridge
+|   |-- src/dev/amdgpu/      # MI300X GPU device model & vfio-user bridge
+|   |-- ext/libvfio-user/    # libvfio-user library (Nutanix)
 |   `-- configs/example/gpufs/mi300_cosim.py  # cosim configuration
-|-- qemu/                    # QEMU emulator (submodule, cosim-gpu branch)
-|   |-- hw/misc/mi300x_gem5.c      # mi300x-gem5 PCIe device
-|   `-- include/hw/misc/mi300x_gem5.h
+|-- qemu/                    # QEMU emulator (submodule, stock QEMU 10.0+)
 |-- gem5-resources/          # disk images, kernels, GPU apps (submodule)
 |-- scripts/                 # build & launch scripts
 |   |-- cosim_launch.sh      # one-click cosim launcher
@@ -163,19 +162,18 @@ cosim/
 
 ## Key Components
 
-### QEMU Side (`qemu/hw/misc/mi300x_gem5.c`)
+### QEMU Side (stock `vfio-user-pci`)
 
-A virtual PCIe device (`mi300x-gem5`) that exposes:
+Uses QEMU's built-in `vfio-user-pci` device (no custom QEMU code). QEMU connects
+to gem5's vfio-user server and maps all BARs through the standard vfio-user protocol:
 - **BAR0+1**: VRAM (64-bit, prefetchable, shared memory backed)
-- **BAR2+3**: Doorbell (64-bit, forwarded to gem5)
-- **BAR4**: MSI-X (256 vectors)
-- **BAR5**: MMIO registers (32-bit, forwarded to gem5)
-
-Communication: Unix domain socket (sync MMIO) + event thread (async IRQ/DMA).
+- **BAR2+3**: Doorbell (64-bit, forwarded to gem5 via vfio-user)
+- **BAR4**: MSI-X (256 vectors, eventfd-based KVM injection)
+- **BAR5**: MMIO registers (32-bit, forwarded to gem5 via vfio-user)
 
 ### gem5 Side (`gem5/src/dev/amdgpu/`)
 
-- **MI300XGem5Cosim** — socket server, message dispatch, shared memory setup
+- **MI300XVfioUser** — vfio-user server (libvfio-user), BAR/config/IRQ dispatch
 - **AMDGPUDevice** — MI300X GPU device model (MMIO, doorbell, config space)
 - **PM4PacketProcessor** — command processor with VRAM-aware fence routing
 - **SDMAEngine** — DMA engine with VRAM write-back support
@@ -200,6 +198,7 @@ Detailed technical documentation is available in [`docs/`](docs/):
 - [MI300X Memory Management](docs/en/mi300x-memory-management.md) — GART, address translation
 - [GPU FS Guide](docs/en/gpu-fs-guide.md) — gem5 standalone GPU full-system simulation
 - [Guest GPU Init](docs/en/cosim-guest-gpu-init.md) — driver initialization flow
+- [Memory Architecture](docs/en/cosim-memory-architecture.md) — shared memory, VRAM routing, DMA
 - [Debugging Pitfalls](docs/en/cosim-debugging-pitfalls.md) — common issues and solutions
 - [Development Story](docs/en/cosim-dev-story.md) — how this project was built in one day with Claude
 

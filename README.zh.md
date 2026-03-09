@@ -14,9 +14,9 @@
 |  | ROCm 7.0 / HIP        |  |       |  |  PM4 / Ruby caches   |  |
 |  +----------+------------+  |       |  +---------+------------+  |
 |  +----------v------------+  |       |  +---------v------------+  |
-|  | mi300x-gem5 PCIe dev  |<-------->|  | MI300XGem5Cosim      |  |
-|  +-----------------------+  | Unix  |  +----------------------+  |
-|                             |Socket |                            |
+|  | vfio-user-pci         |<-------->|  | MI300XVfioUser       |  |
+|  | (QEMU built-in)       |  |vfio-  |  | (libvfio-user)       |  |
+|  +-----------------------+  |user   |  +----------------------+  |
 +-----------------------------+       +----------------------------+
         |                                       |
         v                                       v
@@ -78,7 +78,7 @@ cd ..
 # 3. 构建运行时 Docker 镜像（用于在 Docker 内运行 gem5）
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
-# 4. 编译 QEMU（含 mi300x-gem5 cosim PCIe 设备）
+# 4. 编译 QEMU（标准构建；vfio-user-pci 自 QEMU 10.0 起内置）
 cd qemu && mkdir -p build && cd build
 ../configure --target-list=x86_64-softmmu
 make -j$(nproc)
@@ -141,11 +141,10 @@ EOF
 ```
 cosim/
 |-- gem5/                    # gem5 simulator (submodule, cosim-gpu branch)
-|   |-- src/dev/amdgpu/      # MI300X GPU device model & cosim bridge
+|   |-- src/dev/amdgpu/      # MI300X GPU device model & vfio-user bridge
+|   |-- ext/libvfio-user/    # libvfio-user library (Nutanix)
 |   `-- configs/example/gpufs/mi300_cosim.py  # cosim configuration
-|-- qemu/                    # QEMU emulator (submodule, cosim-gpu branch)
-|   |-- hw/misc/mi300x_gem5.c      # mi300x-gem5 PCIe device
-|   `-- include/hw/misc/mi300x_gem5.h
+|-- qemu/                    # QEMU emulator (submodule, stock QEMU 10.0+)
 |-- gem5-resources/          # disk images, kernels, GPU apps (submodule)
 |-- scripts/                 # build & launch scripts
 |   |-- cosim_launch.sh      # one-click cosim launcher
@@ -169,6 +168,7 @@ cosim/
 - [MI300X 内存管理](docs/zh/mi300x-memory-management.md) — GART、地址翻译、内存映射
 - [GPU 全系统仿真指南](docs/zh/gpu-fs-guide.md) — gem5 单机 GPU FS 仿真复现
 - [Guest GPU 初始化流程](docs/zh/cosim-guest-gpu-init.md) — 驱动加载与设备初始化
+- [内存架构](docs/zh/cosim-memory-architecture.md) — 共享内存、VRAM 路由、DMA
 - [调试踩坑记录](docs/zh/cosim-debugging-pitfalls.md) — 常见问题与解决方案
 - [开发故事](docs/zh/cosim-dev-story.md) — 一天时间用 Claude 构建 cosim-gpu 的全过程
 

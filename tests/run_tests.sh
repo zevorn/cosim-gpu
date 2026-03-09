@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build"
 FILTER=""
 JSON=0
+TEST_TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-60}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -54,17 +55,31 @@ echo ""
 
 for test_bin in "${TESTS[@]}"; do
     name="$(basename "$test_bin")"
+    tmp_output="$(mktemp)"
 
-    output=$("$test_bin" 2>&1)
-    rc=$?
-
-    if [[ $rc -eq 0 ]]; then
-        status="PASS"
-        PASSED=$((PASSED + 1))
-    else
-        status="FAIL"
-        FAILED=$((FAILED + 1))
+    if [[ $JSON -eq 0 ]]; then
+        echo "[RUN] $name (timeout: ${TEST_TIMEOUT_SECS}s)"
     fi
+
+    timeout --foreground "${TEST_TIMEOUT_SECS}" "$test_bin" >"$tmp_output" 2>&1
+    rc=$?
+    output="$(cat "$tmp_output")"
+    rm -f "$tmp_output"
+
+    case "$rc" in
+        0)
+            status="PASS"
+            PASSED=$((PASSED + 1))
+            ;;
+        124)
+            status="TIMEOUT"
+            FAILED=$((FAILED + 1))
+            ;;
+        *)
+            status="FAIL"
+            FAILED=$((FAILED + 1))
+            ;;
+    esac
 
     # Extract timing from output (look for pattern like "(123.4 ms)")
     ms=$(echo "$output" | grep -oP '\([\d.]+ ms\)' | head -1 | tr -d '()ms ')
@@ -72,6 +87,9 @@ for test_bin in "${TESTS[@]}"; do
 
     if [[ $JSON -eq 0 ]]; then
         echo "$output"
+        if [[ $status == "TIMEOUT" ]]; then
+            echo "[TIMEOUT] $name exceeded ${TEST_TIMEOUT_SECS}s"
+        fi
         echo ""
     fi
 

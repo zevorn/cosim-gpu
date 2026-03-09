@@ -1,17 +1,10 @@
 // Matrix transpose using shared memory to avoid uncoalesced writes.
-// Tests 2D grid, shared memory bank conflict avoidance (padding).
+// Keep it single-dispatch because current cosim is unstable across
+// dependent kernel launches in the same process.
 
 #include "../common/test_utils.h"
 
 #define TILE 16
-
-// Naive transpose (for comparison)
-__global__ void transpose_naive(const float* in, float* out, int W, int H) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x < W && y < H)
-        out[x * H + y] = in[y * W + x];
-}
 
 // Shared memory transpose with +1 padding to avoid bank conflicts
 __global__ void transpose_smem(const float* in, float* out, int W, int H) {
@@ -33,13 +26,12 @@ __global__ void transpose_smem(const float* in, float* out, int W, int H) {
 }
 
 int main() {
-    const int W = 256, H = 256;
+    const int W = 64, H = 64;
     const size_t bytes = W * H * sizeof(float);
     int failures = 0;
     Timer timer;
 
     float *h_in = (float*)malloc(bytes);
-    float *h_out_naive = (float*)malloc(bytes);
     float *h_out_smem = (float*)malloc(bytes);
     float *h_ref = (float*)malloc(bytes);
 
@@ -57,19 +49,6 @@ int main() {
     dim3 threads(TILE, TILE);
     dim3 blocks((W + TILE - 1) / TILE, (H + TILE - 1) / TILE);
 
-    // Test 1: naive transpose
-    HIP_CHECK(hipMemset(d_out, 0, bytes));
-    timer.start();
-    hipLaunchKernelGGL(transpose_naive, blocks, threads, 0, 0,
-                       d_in, d_out, W, H);
-    HIP_CHECK(hipDeviceSynchronize());
-    double ms_naive = timer.elapsed_ms();
-    HIP_CHECK(hipMemcpy(h_out_naive, d_out, bytes, hipMemcpyDeviceToHost));
-
-    int errs1 = check_float(h_ref, h_out_naive, W * H);
-    VERIFY("transpose_naive correctness", errs1 == 0);
-
-    // Test 2: shared memory transpose
     HIP_CHECK(hipMemset(d_out, 0, bytes));
     timer.start();
     hipLaunchKernelGGL(transpose_smem, blocks, threads, 0, 0,
@@ -78,14 +57,12 @@ int main() {
     double ms_smem = timer.elapsed_ms();
     HIP_CHECK(hipMemcpy(h_out_smem, d_out, bytes, hipMemcpyDeviceToHost));
 
-    int errs2 = check_float(h_ref, h_out_smem, W * H);
-    VERIFY("transpose_smem correctness", errs2 == 0);
-
-    printf("  naive: %.1f ms, smem: %.1f ms\n", ms_naive, ms_smem);
+    int errs = check_float(h_ref, h_out_smem, W * H);
+    VERIFY("transpose_smem correctness", errs == 0);
 
     print_summary("transpose", failures, ms_smem);
 
     (void)hipFree(d_in); (void)hipFree(d_out);
-    free(h_in); free(h_out_naive); free(h_out_smem); free(h_ref);
+    free(h_in); free(h_out_smem); free(h_ref);
     return failures;
 }

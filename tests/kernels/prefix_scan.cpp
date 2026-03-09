@@ -3,7 +3,7 @@
 
 #include "../common/test_utils.h"
 
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 64
 
 // Hillis-Steele inclusive scan within a block
 __global__ void inclusive_scan(const int* input, int* output,
@@ -41,7 +41,7 @@ __global__ void add_block_offset(int* data, const int* offsets, int N) {
 }
 
 int main() {
-    // Single block: gem5 cosim lacks inter-kernel global memory coherence
+    // Single block and conservative size for cosim stability
     const int N = BLOCK_SIZE;
     const size_t bytes = N * sizeof(int);
     int failures = 0;

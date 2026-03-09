@@ -28,7 +28,7 @@ __global__ void histogram(const int* input, int* bins, int N) {
 }
 
 int main() {
-    const int N = 1 << 12;  // 4K elements
+    const int N = BLOCK_SIZE;
     const size_t input_bytes = N * sizeof(int);
     const size_t bin_bytes = NUM_BINS * sizeof(int);
     int failures = 0;

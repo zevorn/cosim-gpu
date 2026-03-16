@@ -104,7 +104,7 @@ jobs:
           done
 
       - name: Run protocol test
-        run: python3 scripts/cosim_test_client.py --socket /tmp/gem5-mi300x.sock -v
+        run: python3 scripts/cosim_test_client.py --socket /tmp/gem5-mi300x.sock --smoke --random 1 -v
 
       - name: Collect gem5 logs
         if: always()

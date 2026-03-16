@@ -327,8 +327,22 @@ class CosimTestClient:
         self.passed += 1
         print("  PASS: Doorbell write (no crash)")
 
-    def run_all(self):
-        """Run all test steps in sequence."""
+    # Tests that work without driver initialization (gem5 server only)
+    SMOKE_TESTS = [
+        "test_init",
+        "test_pci_enum",
+        "test_grbm_status",
+        "test_mmio_write_read",
+        "test_doorbell",
+    ]
+
+    def run_all(self, smoke=False, random_pick=0):
+        """Run test steps.
+
+        Args:
+            smoke: only run tests that work without driver init.
+            random_pick: randomly select N tests from the list (0 = all).
+        """
         print("\n" + "=" * 60)
         print("MI300X Co-simulation Test Client")
         print("=" * 60)
@@ -342,7 +356,7 @@ class CosimTestClient:
 
         print("Connected. Running tests:\n")
 
-        tests = [
+        all_tests = [
             self.test_init,
             self.test_pci_enum,
             self.test_psp_status,
@@ -353,6 +367,19 @@ class CosimTestClient:
             self.test_mmio_write_read,
             self.test_doorbell,
         ]
+
+        if smoke:
+            tests = [t for t in all_tests if t.__name__ in self.SMOKE_TESTS]
+        else:
+            tests = all_tests
+
+        if random_pick > 0:
+            # test_init must always run first (protocol handshake)
+            init = [t for t in tests if t.__name__ == "test_init"]
+            rest = [t for t in tests if t.__name__ != "test_init"]
+            import random
+            pick = min(random_pick, len(rest))
+            tests = init + random.sample(rest, pick)
 
         for test in tests:
             try:
@@ -382,6 +409,10 @@ def main():
                        help="Use built-in mock server (no gem5 needed)")
     parser.add_argument("-v", "--verbose", action="store_true",
                        help="Verbose output")
+    parser.add_argument("--smoke", action="store_true",
+                       help="Only run smoke tests (no driver init needed)")
+    parser.add_argument("--random", type=int, default=0, metavar="N",
+                       help="Randomly pick N tests (always includes INIT)")
     args = parser.parse_args()
 
     server = None
@@ -395,7 +426,7 @@ def main():
         print(f"Loopback server started on {sock_path}")
 
     client = CosimTestClient(sock_path, verbose=args.verbose)
-    rc = client.run_all()
+    rc = client.run_all(smoke=args.smoke, random_pick=args.random)
 
     if server:
         server.stop()

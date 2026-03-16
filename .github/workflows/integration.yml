@@ -1,0 +1,160 @@
+# gem5 cosim protocol test: start real gem5 server and run test client
+name: Integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gem5'
+      - 'scripts/cosim_test_client.py'
+      - 'scripts/cosim_launch.sh'
+      - '.github/workflows/integration.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'gem5'
+      - 'scripts/cosim_test_client.py'
+  workflow_dispatch:
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gem5-protocol-test:
+    name: gem5 Cosim Protocol Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get gem5 submodule ref
+        id: gem5-ref
+        run: echo "hash=$(git ls-tree HEAD gem5 | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
+      - name: Init gem5 submodule
+        run: git submodule update --init --recursive --depth 1 gem5
+
+      - name: Cache gem5 binary
+        uses: actions/cache@v4
+        id: gem5-cache
+        with:
+          path: gem5/build/VEGA_X86/gem5.opt
+          key: gem5-opt-${{ steps.gem5-ref.outputs.hash }}
+
+      - name: Build Docker image
+        if: steps.gem5-cache.outputs.cache-hit != 'true'
+        run: docker build -t gem5-build:local -f scripts/Dockerfile.run scripts/
+
+      - name: Build gem5
+        if: steps.gem5-cache.outputs.cache-hit != 'true'
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}/gem5:/gem5" \
+            -w /gem5 \
+            gem5-build:local \
+            scons build/VEGA_X86/gem5.opt -j"$(nproc)" \
+              GOLD_LINKER=True --linker=gold
+
+      - name: Build runtime Docker image
+        run: docker build -t gem5-run:local -f scripts/Dockerfile.run scripts/
+
+      - name: Prepare shared memory
+        run: sudo mount -o remount,size=20G /dev/shm
+
+      - name: Start gem5 cosim server
+        run: |
+          docker run -d --name gem5-cosim \
+            -v "${{ github.workspace }}/gem5:/gem5" \
+            -v /tmp:/tmp \
+            -v /dev/shm:/dev/shm \
+            -w /gem5 \
+            -e PYTHONPATH=/usr/lib/python3.12/lib-dynload \
+            gem5-run:local \
+            /gem5/build/VEGA_X86/gem5.opt \
+            --listener-mode=on \
+            /gem5/configs/example/gpufs/mi300_cosim.py \
+            --socket-path=/tmp/gem5-mi300x.sock \
+            --cosim-backend=legacy \
+            --mem-size=8G \
+            --dgpu-mem-size=16GiB \
+            --num-compute-units=4
+
+      - name: Wait for gem5 ready
+        timeout-minutes: 5
+        run: |
+          echo "Waiting for gem5 cosim server..."
+          for i in $(seq 1 300); do
+            if docker logs gem5-cosim 2>&1 | grep -q "MI300XGem5Cosim: listening"; then
+              echo "gem5 cosim server ready (${i}s)"
+              break
+            fi
+            if ! docker ps -q -f name=gem5-cosim | grep -q .; then
+              echo "::error::gem5 container exited unexpectedly"
+              docker logs gem5-cosim 2>&1 | tail -50
+              exit 1
+            fi
+            sleep 1
+          done
+          # Ensure socket is accessible
+          chmod 666 /tmp/gem5-mi300x.sock 2>/dev/null || true
+
+      - name: Run protocol test
+        run: python3 scripts/cosim_test_client.py --socket /tmp/gem5-mi300x.sock -v
+
+      - name: Collect gem5 logs
+        if: always()
+        run: docker logs gem5-cosim 2>&1 | tail -200 > /tmp/gem5-cosim.log || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gem5-cosim-logs
+          path: /tmp/gem5-cosim.log
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f gem5-cosim 2>/dev/null || true
+          rm -f /tmp/gem5-mi300x.sock 2>/dev/null || true
+          rm -f /dev/shm/cosim-guest-ram /dev/shm/mi300x-vram 2>/dev/null || true
+
+  # Full cosim test (QEMU + gem5 + disk image)
+  # Requires self-hosted runner with: KVM, Docker, pre-built disk image
+  cosim-full-test:
+    name: Full Cosim Test
+    runs-on: [self-hosted, kvm]
+    if: github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify prerequisites
+        run: |
+          test -e /dev/kvm || { echo "::error::KVM not available"; exit 1; }
+          command -v docker || { echo "::error::Docker not found"; exit 1; }
+          echo "KVM and Docker available"
+
+      - name: Build images
+        run: |
+          docker build -t gem5-build:local -f scripts/Dockerfile.run scripts/
+          docker build -t gem5-run:local -f scripts/Dockerfile.run scripts/
+
+      - name: Run cosim integration tests
+        run: ./scripts/run_cosim_tests.sh --all
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosim-full-test-logs
+          path: /tmp/qemu-cosim-tests*.log
+          retention-days: 14

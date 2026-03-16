@@ -1,0 +1,84 @@
+# Compile verification for gem5 and QEMU (push to main + manual)
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gem5'
+      - 'qemu'
+      - '.gitmodules'
+      - 'scripts/Dockerfile.run'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'gem5'
+      - 'qemu'
+      - '.gitmodules'
+      - 'scripts/Dockerfile.run'
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-gem5:
+    name: Build gem5 (VEGA_X86)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Init gem5 submodule
+        run: git submodule update --init --recursive --depth 1 gem5
+
+      - name: Build Docker image
+        run: docker build -t gem5-build:local -f scripts/Dockerfile.run scripts/
+
+      - name: Build gem5
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}/gem5:/gem5" \
+            -w /gem5 \
+            gem5-build:local \
+            scons build/VEGA_X86/gem5.opt -j"$(nproc)" \
+              GOLD_LINKER=True --linker=gold
+
+      - name: Verify binary
+        run: test -f gem5/build/VEGA_X86/gem5.opt
+
+  build-qemu:
+    name: Build QEMU (x86_64-softmmu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Init qemu submodule
+        run: git submodule update --init --depth 1 qemu
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential meson ninja-build pkg-config \
+            libglib2.0-dev libpixman-1-dev libslirp-dev
+
+      - name: Configure QEMU
+        run: |
+          cd qemu
+          mkdir -p build && cd build
+          ../configure --target-list=x86_64-softmmu
+
+      - name: Build QEMU
+        run: make -C qemu/build -j"$(nproc)"
+
+      - name: Verify binary
+        run: test -f qemu/build/qemu-system-x86_64

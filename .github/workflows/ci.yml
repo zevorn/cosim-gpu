@@ -1,0 +1,53 @@
+# Fast checks on every push/PR (< 5 min, no submodules needed)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ShellCheck
+        run: shellcheck scripts/*.sh tests/run_tests.sh
+
+  python-lint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ruff
+        run: pip install -q ruff
+      - name: Run ruff
+        run: ruff check scripts/
+
+  protocol-test:
+    name: Protocol Test (Loopback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run cosim protocol test
+        run: python3 scripts/cosim_test_client.py --loopback
+
+  kernel-compile:
+    name: GPU Kernel Compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile GPU kernels
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}/tests:/tests" \
+            -w /tests \
+            ghcr.io/gem5/gpu-fs:latest \
+            make

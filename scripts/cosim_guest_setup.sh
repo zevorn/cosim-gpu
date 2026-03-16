@@ -49,7 +49,7 @@ echo "[3/4] Loading amdgpu kernel module..."
 if [ -f /home/gem5/load_amdgpu.sh ]; then
     # Newer disk images have a dedicated load script
     sh /home/gem5/load_amdgpu.sh
-elif [ -f /lib/modules/$(uname -r)/updates/dkms/amdgpu.ko ]; then
+elif [ -f "/lib/modules/$(uname -r)/updates/dkms/amdgpu.ko" ]; then
     modprobe -v amdgpu \
         ip_block_mask=0x67 \
         ras_enable=0 \

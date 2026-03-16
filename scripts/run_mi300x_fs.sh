@@ -198,11 +198,11 @@ build_disk_image() {
     cd "${RESOURCES_DIR}/src/x86-ubuntu-gpu-ml"
     local qemu_bin
     qemu_bin="$(command -v qemu-system-x86_64)"
-    local proxy_arg=""
+    local proxy_args=()
     if [ -n "${https_proxy:-}" ]; then
-        proxy_arg="-var http_proxy=${https_proxy}"
+        proxy_args+=(-var "http_proxy=${https_proxy}")
     fi
-    ./build.sh -var "qemu_path=${qemu_bin}" ${proxy_arg}
+    ./build.sh -var "qemu_path=${qemu_bin}" "${proxy_args[@]}"
 
     [ -f "$DISK_IMAGE" ] || error "Disk image build failed"
     info "Disk image: $DISK_IMAGE"

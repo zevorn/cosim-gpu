@@ -27,6 +27,7 @@ GEM5_DIR="${COSIM_DIR}/gem5"
 RESOURCES_DIR="${COSIM_DIR}/gem5-resources"
 
 GEM5_BIN="${GEM5_DIR}/build/VEGA_X86/gem5.opt"
+# shellcheck disable=SC2034
 GEM5_CONFIG="${GEM5_DIR}/configs/example/gpufs/mi300_cosim.py"
 GEM5_DOCKER_IMAGE="${GEM5_DOCKER_IMAGE:-gem5-run:local}"
 GEM5_CONTAINER="gem5-cosim"

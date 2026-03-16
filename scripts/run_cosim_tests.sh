@@ -31,6 +31,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
+# shellcheck disable=SC2329
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 step()  { echo -e "${CYAN}[STEP]${NC} $*"; }
@@ -135,6 +136,7 @@ send_guest() {
     printf '%s\n' "$line" >&$CONTROL_FD
 }
 
+# shellcheck disable=SC2329
 on_interrupt() {
     echo ""
     warn "Interrupted. The current QEMU + gem5 session remains running."

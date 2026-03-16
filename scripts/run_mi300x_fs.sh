@@ -42,7 +42,7 @@ QEMU_BUILD_DIR="${QEMU_DIR}/build"
 QEMU_BIN="${QEMU_BUILD_DIR}/qemu-system-x86_64"
 
 # Docker images
-GEM5_BUILD_IMAGE="${GEM5_BUILD_IMAGE:-ghcr.io/gem5/ubuntu-24.04_all-dependencies:v24-0}"
+GEM5_BUILD_IMAGE="gem5-build:local"
 GPU_APP_BUILD_IMAGE="${GPU_APP_BUILD_IMAGE:-ghcr.io/gem5/gpu-fs}"
 
 # gem5 config files
@@ -111,6 +111,9 @@ build_gem5() {
 
     local nproc_val
     nproc_val="$(nproc)"
+
+    info "Building local image '$GEM5_BUILD_IMAGE' from Dockerfile.run..."
+    docker build -t "$GEM5_BUILD_IMAGE" -f "${SCRIPT_DIR}/Dockerfile.run" "${SCRIPT_DIR}"
 
     info "Using image: $GEM5_BUILD_IMAGE"
     info "Build parallelism: -j${nproc_val}"
@@ -367,7 +370,7 @@ show_status() {
         if docker image inspect "$GEM5_BUILD_IMAGE" >/dev/null 2>&1; then
             info "  Build image:   $GEM5_BUILD_IMAGE"
         else
-            warn "  Build image:   $GEM5_BUILD_IMAGE (not pulled)"
+            warn "  Build image:   $GEM5_BUILD_IMAGE (not built, run: $0 build-gem5)"
         fi
         if docker image inspect "$GPU_APP_BUILD_IMAGE" >/dev/null 2>&1; then
             info "  GPU app image: $GPU_APP_BUILD_IMAGE"
@@ -409,8 +412,6 @@ Commands:
   status             Show build status
 
 Environment variables:
-  GEM5_BUILD_IMAGE   Docker image for gem5 build
-                     (default: $GEM5_BUILD_IMAGE)
   GPU_APP_BUILD_IMAGE  Docker image for GPU app build
                      (default: $GPU_APP_BUILD_IMAGE)
 

@@ -4,7 +4,7 @@
 
 ```bash
 # Option A: script-based
-GEM5_BUILD_IMAGE=ghcr.io/gem5/gpu-fs:latest ./scripts/run_mi300x_fs.sh build-all
+./scripts/run_mi300x_fs.sh build-all
 cd scripts && docker build -t gem5-run:local -f Dockerfile.run . && cd ..
 
 # Option B: manual

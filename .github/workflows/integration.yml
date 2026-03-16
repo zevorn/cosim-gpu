@@ -35,7 +35,9 @@ jobs:
         run: echo "hash=$(git ls-tree HEAD gem5 | awk '{print $3}')" >> "$GITHUB_OUTPUT"
 
       - name: Init gem5 submodule
-        run: git submodule update --init --recursive --depth 1 gem5
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive --depth 1 gem5
 
       - name: Cache gem5 binary
         uses: actions/cache@v4

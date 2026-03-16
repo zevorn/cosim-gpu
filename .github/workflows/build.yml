@@ -34,7 +34,9 @@ jobs:
           fetch-depth: 1
 
       - name: Init gem5 submodule
-        run: git submodule update --init --recursive --depth 1 gem5
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive --depth 1 gem5
 
       - name: Build Docker image
         run: docker build -t gem5-build:local -f scripts/Dockerfile.run scripts/
@@ -62,7 +64,9 @@ jobs:
           fetch-depth: 1
 
       - name: Init qemu submodule
-        run: git submodule update --init --depth 1 qemu
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --depth 1 qemu
 
       - name: Install build dependencies
         run: |

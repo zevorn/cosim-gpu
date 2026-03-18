@@ -125,6 +125,50 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Test 3: Cross-GPU VRAM isolation (if >= 2 GPUs)
+    if (num_gpus >= 2) {
+        printf("\n=== Test 3: Cross-GPU VRAM isolation ===\n");
+        int iso_n = 128;
+        size_t iso_bytes = iso_n * sizeof(float);
+
+        // Allocate and fill known pattern on GPU 1
+        HIP_CHECK(hipSetDevice(1));
+        float *d_sentinel;
+        HIP_CHECK(hipMalloc(&d_sentinel, iso_bytes));
+        std::vector<float> sentinel(iso_n, 42.0f);
+        HIP_CHECK(hipMemcpy(d_sentinel, sentinel.data(), iso_bytes,
+                             hipMemcpyHostToDevice));
+
+        // Write different data on GPU 0 (should NOT touch GPU 1)
+        HIP_CHECK(hipSetDevice(0));
+        float *d_tmp;
+        HIP_CHECK(hipMalloc(&d_tmp, iso_bytes));
+        std::vector<float> noise(iso_n, -1.0f);
+        HIP_CHECK(hipMemcpy(d_tmp, noise.data(), iso_bytes,
+                             hipMemcpyHostToDevice));
+        HIP_CHECK(hipDeviceSynchronize());
+        HIP_CHECK(hipFree(d_tmp));
+
+        // Read back GPU 1 sentinel — must be unchanged
+        HIP_CHECK(hipSetDevice(1));
+        std::vector<float> readback(iso_n, 0.0f);
+        HIP_CHECK(hipMemcpy(readback.data(), d_sentinel, iso_bytes,
+                             hipMemcpyDeviceToHost));
+        HIP_CHECK(hipFree(d_sentinel));
+
+        bool iso_pass = true;
+        for (int i = 0; i < iso_n; i++) {
+            if (readback[i] != 42.0f) {
+                fprintf(stderr, "ISOLATION FAIL: GPU 1 data corrupted at "
+                        "[%d]: got %f, expected 42.0\n", i, readback[i]);
+                iso_pass = false;
+                break;
+            }
+        }
+        printf("Cross-GPU isolation: %s\n", iso_pass ? "PASS" : "FAIL");
+        if (!iso_pass) return 1;
+    }
+
     printf("\nAll tests PASSED (%d GPU(s))\n", num_gpus);
     return 0;
 }

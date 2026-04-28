@@ -56,7 +56,11 @@ check_file() {
             continue
         fi
 
-        if echo "$line" | grep -qE '(modprobe|insmod).*amdgpu.*ip_block_mask'; then
+        # Match modprobe/insmod amdgpu lines, but skip lines that pass
+        # params via a variable (e.g., "${AMDGPU_ARGS[@]}") — those are
+        # validated through the AMDGPU_ARGS definition check above.
+        if echo "$line" | grep -qE '(modprobe|insmod).*amdgpu' &&
+           ! echo "$line" | grep -qF 'AMDGPU_ARGS'; then
             check_line "$filepath" "$lineno" "$line"
         fi
     done <<< "$contents"

@@ -61,6 +61,10 @@ fi
 echo "[3/4] Loading amdgpu kernel module..."
 AMDGPU_ARGS="ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2"
 
+# Kernel cmdline modprobe.blacklist=amdgpu creates a runtime blacklist that
+# causes modprobe to silently skip the module (exit 0 without loading).
+rm -f /run/modprobe.d/*blacklist* 2>/dev/null
+
 if modprobe -v amdgpu $AMDGPU_ARGS; then
     echo "  amdgpu loaded (modprobe)"
 elif insmod "/lib/modules/$(uname -r)/updates/dkms/amdgpu.ko.zst" $AMDGPU_ARGS 2>/dev/null; then

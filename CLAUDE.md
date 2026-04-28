@@ -30,14 +30,14 @@ Use `-j1` for gem5 linking if OOM-killed.
 ```
 
 After guest boots: driver auto-loads via `cosim-gpu-setup.service` (dd ROM + modprobe).
-Manual: `dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128 && modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0`
+Manual: `dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128 && modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2`
 
 ## Architecture
 
 QEMU (Q35+KVM) ←Unix socket→ gem5 (MI300X GPU model, no kernel).
 Shared memory: `/dev/shm/cosim-guest-ram` (guest RAM) + `/dev/shm/mi300x-vram` (VRAM).
 BAR layout: 0+1=VRAM, 2+3=Doorbell, 4=MSI-X, 5=MMIO.
-Driver params: `ip_block_mask=0x67` (disable PSP+SMU), `discovery=2` (firmware).
+Driver params: `ip_block_mask=0x67` (disable PSP+SMU), `ppfeaturemask=0 dpm=0 audio=0` (disable power-play/DPM/audio), `discovery=2` (firmware).
 
 ## Debugging
 

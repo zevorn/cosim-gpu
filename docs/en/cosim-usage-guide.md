@@ -326,7 +326,7 @@ The disk image includes `cosim-gpu-setup.service` which runs at boot:
 
 1. Writes VGA ROM to `0xC0000` via `dd` (required for gem5 `readROM()`)
 2. Symlinks IP discovery firmware
-3. Runs `modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0`
+3. Runs `modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2`
 
 The service completes in ~40 seconds. After login, verify with `rocm-smi`.
 
@@ -341,7 +341,7 @@ ln -sf /usr/lib/firmware/amdgpu/mi300_discovery \
        /usr/lib/firmware/amdgpu/ip_discovery.bin
 
 # 3. Load the amdgpu driver
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 > **Key parameter notes:**

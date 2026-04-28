@@ -85,7 +85,7 @@ cp /path/to/local/file "$MOUNTPOINT/root/file"
 ```bash
 # Create modprobe config
 cat > "$MOUNTPOINT/etc/modprobe.d/amdgpu-cosim.conf" << 'EOF'
-options amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+options amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 EOF
 ```
 

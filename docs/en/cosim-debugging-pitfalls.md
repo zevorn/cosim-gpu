@@ -80,7 +80,7 @@ The driver logs `"Unable to locate a BIOS ROM"` and `"VBIOS image optional, proc
 
 ```bash
 dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 The ROM data at `0xC0000` is accessible by gem5 via `/dev/shm/cosim-guest-ram`. When the driver reads the ROM via SMU MMIO registers, gem5's `AMDGPUDevice::readROM()` reads from `system->getPhysMem()` at `VGA_ROM_DEFAULT + offset` and returns the ROM content through the cosim socket.

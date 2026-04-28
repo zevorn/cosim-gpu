@@ -306,7 +306,7 @@ echo "  rocminfo          # should show gfx942"
 echo ""
 echo "Manual setup (if service is not installed):"
 echo "  dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128"
-echo "  modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0"
+echo "  modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2"
 echo ""
 if [[ -n "$SHARE_DIR" ]]; then
     echo "Shared directory: $SHARE_DIR"

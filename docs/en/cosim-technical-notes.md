@@ -226,7 +226,7 @@ scons build/VEGA_X86/gem5.opt -j1 GOLD_LINKER=True --linker=gold
   - QEMU -> guest IH handler
 - **GART translation**: co-simulation fallback reads PTEs from shared VRAM; unmapped pages safely routed to sink
 - **65,000+ MMIO operations** handled without crashes
-- **Disk image**: `cosim-gpu-setup.service` auto-loads driver at boot (dd ROM → modprobe with `ip_block_mask=0x67 discovery=2 ras_enable=0`)
+- **Disk image**: `cosim-gpu-setup.service` auto-loads driver at boot (dd ROM → modprobe with `ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2`)
 
 ### Known Limitations
 
@@ -334,7 +334,7 @@ screen -dmS qemu-cosim -L -Logfile /tmp/qemu-cosim-screen.log \
 
 # 4. Manual GPU setup (if cosim-gpu-setup.service is not installed)
 screen -S qemu-cosim -X stuff 'dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128\n'
-screen -S qemu-cosim -X stuff 'modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0\n'
+screen -S qemu-cosim -X stuff 'modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2\n'
 ```
 
 ## 6. Debugging Tips

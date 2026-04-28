@@ -107,7 +107,7 @@ rocminfo          # should show gfx942
 
 # Manual setup (if the systemd service is not installed):
 dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 
 # Run a HIP test
 cat > /tmp/test.cpp << 'EOF'

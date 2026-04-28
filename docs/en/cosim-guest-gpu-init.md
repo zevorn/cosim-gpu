@@ -14,7 +14,7 @@ The disk image ships with `cosim-gpu-setup.service`, which runs at boot and perf
 
 1. `dd` the VGA ROM to `0xC0000` (required for gem5's `readROM()` via shared memory)
 2. Symlink IP discovery firmware
-3. `modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0`
+3. `modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2`
 
 The service completes in ~40 seconds. After guest login, GPU is ready:
 
@@ -58,7 +58,7 @@ If the systemd service is not installed, run these commands manually after guest
 ```bash
 dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128
 ln -sf /usr/lib/firmware/amdgpu/mi300_discovery /usr/lib/firmware/amdgpu/ip_discovery.bin
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 ## Detailed Steps
@@ -98,7 +98,7 @@ ln -sf /usr/lib/firmware/amdgpu/mi300_discovery \
 ### Step 3: Load the amdgpu Kernel Module
 
 ```bash
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 **What it does**: Loads the amdgpu driver with co-simulation parameters.
@@ -108,6 +108,9 @@ modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
 | Parameter | Value | Meaning |
 |-----------|-------|---------|
 | `ip_block_mask` | `0x67` | Disable PSP (bit 3) and SMU (bit 4); cosim does not model these |
+| `ppfeaturemask` | `0` | Disable PowerPlay features; cosim has no power management hardware |
+| `dpm` | `0` | Disable Dynamic Power Management |
+| `audio` | `0` | Disable audio; no HDMI/DP audio in cosim |
 | `ras_enable` | `0` | Disable RAS — prevents NULL deref on `atom_context` when VBIOS is minimal |
 | `discovery` | `2` | Use firmware file for IP discovery |
 

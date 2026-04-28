@@ -87,7 +87,7 @@ Without ROM in shared memory, `atom_context` is NULL.
 **Fix**:
 ```bash
 dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 **Why it works**: The `dd` writes ROM to guest physical memory at 0xC0000, which maps
@@ -133,7 +133,7 @@ modules (returns exit 0 without loading).
 **Fix**: The setup script must remove the runtime blacklist before calling modprobe:
 ```bash
 rm -f /run/modprobe.d/*blacklist* 2>/dev/null
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 ## Debugging Tips

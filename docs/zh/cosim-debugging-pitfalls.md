@@ -80,7 +80,7 @@ MI300X 检测顺序（来自 dmesg）：
 
 ```bash
 dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128
-modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0
+modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
 ```
 
 `0xC0000` 处的 ROM 数据通过 `/dev/shm/cosim-guest-ram` 可被 gem5 访问。当驱动通过 SMU MMIO 寄存器读取 ROM 时，gem5 的 `AMDGPUDevice::readROM()` 从 `system->getPhysMem()` 的 `VGA_ROM_DEFAULT + offset` 处读取，通过 cosim socket 返回 ROM 内容。

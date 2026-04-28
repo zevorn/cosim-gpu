@@ -226,7 +226,7 @@ scons build/VEGA_X86/gem5.opt -j1 GOLD_LINKER=True --linker=gold
   - QEMU → guest IH 处理程序
 - **GART 翻译**：协同仿真兜底机制从共享 VRAM 读取 PTE；未映射页安全路由到 sink
 - **65,000+ 次 MMIO 操作**处理无崩溃
-- **磁盘镜像**：`cosim-gpu-setup.service` 开机自动加载驱动（dd ROM → modprobe `ip_block_mask=0x67 discovery=2 ras_enable=0`）
+- **磁盘镜像**：`cosim-gpu-setup.service` 开机自动加载驱动（dd ROM → modprobe `ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2`）
 
 ### 已知限制
 
@@ -334,7 +334,7 @@ screen -dmS qemu-cosim -L -Logfile /tmp/qemu-cosim-screen.log \
 
 # 4. 手动 GPU 初始化（如果 cosim-gpu-setup.service 未安装）
 screen -S qemu-cosim -X stuff 'dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128\n'
-screen -S qemu-cosim -X stuff 'modprobe amdgpu ip_block_mask=0x67 discovery=2 ras_enable=0\n'
+screen -S qemu-cosim -X stuff 'modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2\n'
 ```
 
 ## 6. 调试技巧

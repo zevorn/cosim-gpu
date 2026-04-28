@@ -3,8 +3,10 @@
 # required parameters.  Missing ppfeaturemask/dpm/audio causes -EINVAL
 # on ROCm 7.0+ (see issue #9).
 #
-# Scans cosim shell scripts for the AMDGPU_ARGS definition (or inline
-# modprobe commands) and verifies required parameters are present.
+# Two checks per file:
+#   1. If AMDGPU_ARGS is defined, its definition must contain all params.
+#   2. Every inline modprobe/insmod amdgpu line (with literal params, not
+#      a variable reference) must also contain all params independently.
 
 set -uo pipefail
 
@@ -23,40 +25,41 @@ REQUIRED_PARAMS=(
 FAILED=0
 CHECKED=0
 
-check_file() {
+check_line() {
     local file="$1"
-    # Strategy: collect all lines that define AMDGPU_ARGS or directly call
-    # modprobe/insmod with inline parameters (not via a variable).
-    # Merge them into one string for parameter checking.
-    local param_lines=""
-
-    # Check for AMDGPU_ARGS definition (array or string form)
-    local args_def
-    args_def=$(grep -E '^[[:space:]]*AMDGPU_ARGS=' "$file" 2>/dev/null || true)
-    if [[ -n "$args_def" ]]; then
-        param_lines="$args_def"
-    fi
-
-    # Also check for inline modprobe/insmod (params directly on the line)
-    local inline
-    inline=$(grep -E '(modprobe|insmod).*amdgpu.*ip_block_mask' "$file" 2>/dev/null || true)
-    if [[ -n "$inline" ]]; then
-        param_lines="${param_lines}${inline}"
-    fi
-
-    if [[ -z "$param_lines" ]]; then
-        echo "WARN: ${file}: no AMDGPU_ARGS or inline modprobe found"
-        return
-    fi
+    local lineno="$2"
+    local line="$3"
 
     CHECKED=$((CHECKED + 1))
     for param in "${REQUIRED_PARAMS[@]}"; do
-        if ! echo "$param_lines" | grep -qF "$param"; then
-            echo "FAIL: ${file} missing required param '${param}'"
+        if ! echo "$line" | grep -qF "$param"; then
+            echo "FAIL: ${file}:${lineno} missing '${param}'"
+            echo "  line: ${line}"
             FAILED=$((FAILED + 1))
             return
         fi
     done
+}
+
+check_file() {
+    local filepath="$1"
+    local contents
+    contents="$(cat "$filepath")"
+    local lineno=0
+
+    while IFS= read -r line; do
+        lineno=$((lineno + 1))
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        if [[ "$line" =~ ^[[:space:]]*AMDGPU_ARGS= ]]; then
+            check_line "$filepath" "$lineno" "$line"
+            continue
+        fi
+
+        if echo "$line" | grep -qE '(modprobe|insmod).*amdgpu.*ip_block_mask'; then
+            check_line "$filepath" "$lineno" "$line"
+        fi
+    done <<< "$contents"
 }
 
 COSIM_SCRIPTS=(
@@ -73,7 +76,7 @@ for script in "${COSIM_SCRIPTS[@]}"; do
 done
 
 echo ""
-echo "Checked $CHECKED files, $FAILED failures."
+echo "Checked $CHECKED definitions/invocations, $FAILED failures."
 
 if [[ $FAILED -gt 0 ]]; then
     echo "FAIL: Missing required modprobe parameters (see issue #9)."

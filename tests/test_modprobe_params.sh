@@ -15,6 +15,7 @@ REQUIRED_PARAMS=(
     "ip_block_mask=0x67"
     "ppfeaturemask=0"
     "dpm=0"
+    "audio=0"
     "ras_enable=0"
     "discovery=2"
 )

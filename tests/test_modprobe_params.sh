@@ -32,7 +32,7 @@ check_line() {
 
     CHECKED=$((CHECKED + 1))
     for param in "${REQUIRED_PARAMS[@]}"; do
-        if ! echo "$line" | grep -qF "$param"; then
+        if ! echo " $line " | tr '()"'"'"'' ' ' | grep -qF " $param "; then
             echo "FAIL: ${file}:${lineno} missing '${param}'"
             echo "  line: ${line}"
             FAILED=$((FAILED + 1))

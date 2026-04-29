@@ -223,25 +223,28 @@ force_clean_orphans() {
         fi
     done < <(docker ps -a --filter "name=gem5-cosim-" --filter "status=exited" --filter "status=dead" --filter "status=created" --format '{{.Names}}' 2>/dev/null)
 
-    _extract_run_id() {
+    local -a _active_rids=()
+    local _cname
+    while IFS= read -r _cname; do
+        [[ -z "$_cname" ]] && continue
+        _active_rids+=("${_cname#gem5-cosim-}")
+    done < <(docker ps --filter "name=gem5-cosim-" --format '{{.Names}}' 2>/dev/null)
+
+    _resource_is_active() {
         local name="$1"
-        if [[ "$name" =~ ^([0-9]{8}-[0-9]{6}-[0-9a-f]+) ]]; then
-            echo "${BASH_REMATCH[1]}"
-        fi
+        local rid
+        for rid in "${_active_rids[@]+"${_active_rids[@]}"}"; do
+            if [[ "$name" == *"$rid"* ]]; then
+                return 0
+            fi
+        done
+        return 1
     }
 
-    _is_run_active() {
-        local rid="$1"
-        [[ -n "$rid" ]] || return 1
-        local cname="gem5-cosim-${rid}"
-        [[ "$(docker inspect -f '{{.State.Running}}' "$cname" 2>/dev/null)" == "true" ]]
-    }
-
-    local f rid
+    local f
     for f in /tmp/gem5-mi300x-*.sock; do
         [[ -e "$f" ]] || continue
-        rid="$(_extract_run_id "${f#/tmp/gem5-mi300x-}")"
-        if [[ -n "$rid" ]] && _is_run_active "$rid"; then
+        if _resource_is_active "$f"; then
             echo "  active socket (skipped): $f"
             continue
         fi
@@ -254,12 +257,7 @@ force_clean_orphans() {
 
     for f in /dev/shm/mi300x-vram /dev/shm/mi300x-vram-* /dev/shm/cosim-guest-ram /dev/shm/cosim-guest-ram-*; do
         [[ -e "$f" ]] || continue
-        rid=""
-        case "$f" in
-            /dev/shm/mi300x-vram-*)      rid="$(_extract_run_id "${f#/dev/shm/mi300x-vram-}")" ;;
-            /dev/shm/cosim-guest-ram-*)   rid="$(_extract_run_id "${f#/dev/shm/cosim-guest-ram-}")" ;;
-        esac
-        if [[ -n "$rid" ]] && _is_run_active "$rid"; then
+        if _resource_is_active "$f"; then
             echo "  active shmem (skipped): $f"
             continue
         fi

@@ -360,11 +360,15 @@ parse_size_bytes() {
     local num="${val%%[GgMmKkTt]*}"
     local suffix="${val##*[0-9]}"
     case "${suffix,,}" in
-        gib|g) echo $((num * 1024 * 1024 * 1024)) ;;
-        mib|m) echo $((num * 1024 * 1024)) ;;
-        kib|k) echo $((num * 1024)) ;;
-        tib|t) echo $((num * 1024 * 1024 * 1024 * 1024)) ;;
-        *)     echo "$num" ;;
+        gib|g)  echo $((num * 1024 * 1024 * 1024)) ;;
+        gb)     echo $((num * 1000 * 1000 * 1000)) ;;
+        mib|m)  echo $((num * 1024 * 1024)) ;;
+        mb)     echo $((num * 1000 * 1000)) ;;
+        kib|k)  echo $((num * 1024)) ;;
+        kb)     echo $((num * 1000)) ;;
+        tib|t)  echo $((num * 1024 * 1024 * 1024 * 1024)) ;;
+        tb)     echo $((num * 1000 * 1000 * 1000 * 1000)) ;;
+        *)      echo "$num" ;;
     esac
 }
 

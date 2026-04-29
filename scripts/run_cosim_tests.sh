@@ -441,8 +441,9 @@ if [[ "$KEEP_ALIVE_ON_SUCCESS" -eq 1 && "$result_rc" -eq 0 ]]; then
     info "Console log: ${SCREEN_LOG}"
     info "Console pipe: ${SESSION_FIFO}"
 else
-    # Signal launcher that test completed normally — skip artifact capture on TERM
-    touch "/tmp/cosim-test-done-${COSIM_RUN_ID}" 2>/dev/null || true
+    if [[ "$result_rc" -eq 0 ]]; then
+        touch "/tmp/cosim-test-done-${COSIM_RUN_ID}" 2>/dev/null || true
+    fi
     step "[${TEST_NAME}] Cleaning up detached session..."
     cleanup_session
 fi

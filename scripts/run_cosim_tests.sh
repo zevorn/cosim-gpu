@@ -10,7 +10,7 @@ TESTS_DIR="${COSIM_DIR}/tests"
 KERNELS_DIR="${TESTS_DIR}/kernels"
 LAUNCH_SCRIPT="${SCRIPT_DIR}/cosim_launch.sh"
 
-# shellcheck source=cosim_lib.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/cosim_lib.sh"
 
 SESSION_NAME="${SESSION_NAME:-qemu-cosim-tests}"
@@ -112,6 +112,7 @@ if [[ "$REPEAT_COUNT" -gt 0 && "$RUN_ALL" -eq 0 ]]; then
     REPEAT_INFRA_FAIL=0
     declare -a REPEAT_MATRIX=()
 
+    # shellcheck disable=SC2317
     repeat_partial_summary() {
         echo ""
         echo "============================================================"
@@ -130,7 +131,6 @@ if [[ "$REPEAT_COUNT" -gt 0 && "$RUN_ALL" -eq 0 ]]; then
     for ((i=1; i<=REPEAT_COUNT; i++)); do
         iter_run_id="$(generate_run_id)"
         sub_session="${SESSION_NAME}-repeat-${i}"
-        sub_log="/tmp/${sub_session}.log"
         iter_artifact_dir="$(cosim_artifact_dir "$COSIM_DIR" "$REPEAT_OPERATOR" "$iter_run_id")"
 
         step "Repeat iteration $i/$REPEAT_COUNT (run-ID: $iter_run_id)"
@@ -298,6 +298,7 @@ on_interrupt() {
     exit 130
 }
 
+# shellcheck disable=SC2317
 on_exit() {
     local rc=$?
     if [[ $rc -ne 0 && "$KEEP_ALIVE_ON_SUCCESS" -eq 0 ]]; then
@@ -427,10 +428,12 @@ else
     fi
     cname="$(cosim_container_name "$COSIM_RUN_ID")"
     docker logs "$cname" > "${runner_artifact_dir}/gem5.log" 2>&1 || true
-    echo "run_id=${COSIM_RUN_ID}" > "${runner_artifact_dir}/metadata.txt"
-    echo "category=${COSIM_CAT_TEST_FAIL}" >> "${runner_artifact_dir}/metadata.txt"
-    echo "test=${TEST_NAME}" >> "${runner_artifact_dir}/metadata.txt"
-    echo "exit_code=${result_rc}" >> "${runner_artifact_dir}/metadata.txt"
+    {
+        echo "run_id=${COSIM_RUN_ID}"
+        echo "category=${COSIM_CAT_TEST_FAIL}"
+        echo "test=${TEST_NAME}"
+        echo "exit_code=${result_rc}"
+    } > "${runner_artifact_dir}/metadata.txt"
 fi
 
 if [[ "$KEEP_ALIVE_ON_SUCCESS" -eq 1 && "$result_rc" -eq 0 ]]; then

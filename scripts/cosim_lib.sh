@@ -65,20 +65,20 @@ cosim_artifact_dir() {
     echo "${cosim_dir}/artifacts/${operator}/${run_id}"
 }
 
-# ---- Failure Taxonomy ----
+# ---- Failure Taxonomy (exported for use by sourcing scripts) ----
 
-readonly COSIM_CAT_TEST_PASS="test_pass"
-readonly COSIM_CAT_TEST_FAIL="test_fail"
-readonly COSIM_CAT_TEST_TIMEOUT="test_timeout"
-readonly COSIM_CAT_BOOT_TIMEOUT="boot_timeout"
-readonly COSIM_CAT_GEM5_INIT_TIMEOUT="gem5_init_timeout"
-readonly COSIM_CAT_GEM5_EXIT="gem5_exit"
-readonly COSIM_CAT_QEMU_EXIT="qemu_exit"
-readonly COSIM_CAT_READINESS_FAIL="readiness_fail"
-readonly COSIM_CAT_STALE_CONFLICT="stale_conflict"
-readonly COSIM_CAT_INTERRUPT="interrupt"
-readonly COSIM_CAT_CLEANUP_FAIL="cleanup_fail"
-readonly COSIM_CAT_INFRA_UNKNOWN="infra_unknown"
+export COSIM_CAT_TEST_PASS="test_pass"
+export COSIM_CAT_TEST_FAIL="test_fail"
+export COSIM_CAT_TEST_TIMEOUT="test_timeout"
+export COSIM_CAT_BOOT_TIMEOUT="boot_timeout"
+export COSIM_CAT_GEM5_INIT_TIMEOUT="gem5_init_timeout"
+export COSIM_CAT_GEM5_EXIT="gem5_exit"
+export COSIM_CAT_QEMU_EXIT="qemu_exit"
+export COSIM_CAT_READINESS_FAIL="readiness_fail"
+export COSIM_CAT_STALE_CONFLICT="stale_conflict"
+export COSIM_CAT_INTERRUPT="interrupt"
+export COSIM_CAT_CLEANUP_FAIL="cleanup_fail"
+export COSIM_CAT_INFRA_UNKNOWN="infra_unknown"
 
 is_infra_failure() {
     local category="$1"
@@ -143,7 +143,7 @@ capture_artifacts() {
 
     ls -la /dev/shm/ > "${artifact_dir}/devshm-listing.txt" 2>&1 || true
     ls -la /tmp/gem5-mi300x*.sock > "${artifact_dir}/socket-listing.txt" 2>&1 || true
-    ps aux | grep -E '(gem5|qemu)' | grep -v grep > "${artifact_dir}/process-snapshot.txt" 2>&1 || true
+    pgrep -af '(gem5|qemu)' > "${artifact_dir}/process-snapshot.txt" 2>&1 || true
     docker ps -a --filter "name=gem5-cosim" > "${artifact_dir}/docker-ps.txt" 2>&1 || true
 }
 
@@ -243,14 +243,13 @@ force_clean_orphans() {
     done
 
     # Legacy un-namespaced resources
-    for f in /tmp/gem5-mi300x.sock; do
-        [[ -e "$f" ]] || continue
-        echo "  orphan legacy socket: $f"
+    if [[ -e /tmp/gem5-mi300x.sock ]]; then
+        echo "  orphan legacy socket: /tmp/gem5-mi300x.sock"
         found=1
         if [[ "$confirm" == "true" ]]; then
-            rm -f "$f" 2>/dev/null || true
+            rm -f /tmp/gem5-mi300x.sock 2>/dev/null || true
         fi
-    done
+    fi
     if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'gem5-cosim'; then
         echo "  orphan legacy container: gem5-cosim"
         found=1

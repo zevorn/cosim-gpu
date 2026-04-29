@@ -24,7 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COSIM_DIR="$(dirname "$SCRIPT_DIR")"
 
-# shellcheck source=cosim_lib.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/cosim_lib.sh"
 
 # ---- Run-ID ----
@@ -221,6 +221,7 @@ manifest_add "artifact" "directory" "$ARTIFACT_DIR"
 
 # ---- Cleanup handler ----
 
+# shellcheck disable=SC2317
 cleanup() {
     local exit_code="${1:-$?}"
     echo ""

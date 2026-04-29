@@ -8,7 +8,7 @@ generate_run_id() {
     local ts
     ts="$(date +%Y%m%d-%H%M%S)"
     local rand
-    rand="$(head -c4 /dev/urandom | xxd -p)"
+    rand="$(od -An -tx1 -N4 /dev/urandom | tr -d ' \n')"
     echo "${ts}-${rand}"
 }
 

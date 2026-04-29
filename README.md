@@ -191,16 +191,11 @@ to gem5's vfio-user server and maps all BARs through the standard vfio-user prot
 
 ## Documentation
 
-Detailed technical documentation is available in [`docs/`](docs/):
+Detailed technical documentation is available in [`docs/`](docs/README.md):
 
-- [Complete Usage Guide](docs/en/cosim-usage-guide.md) — build, run, test
-- [Technical Notes](docs/en/cosim-technical-notes.md) — architecture, pitfalls, fixes
-- [MI300X Memory Management](docs/en/mi300x-memory-management.md) — GART, address translation
-- [GPU FS Guide](docs/en/gpu-fs-guide.md) — gem5 standalone GPU full-system simulation
-- [Guest GPU Init](docs/en/cosim-guest-gpu-init.md) — driver initialization flow
-- [Memory Architecture](docs/en/cosim-memory-architecture.md) — shared memory, VRAM routing, DMA
-- [Debugging Pitfalls](docs/en/cosim-debugging-pitfalls.md) — common issues and solutions
-- [Development Story](docs/en/cosim-dev-story.md) — how this project was built in one day with Claude
+- [Getting Started](docs/en/getting-started.md) — build, launch, and run your first HIP test
+- [Architecture](docs/en/architecture.md) — system design, memory sharing, address translation
+- [Reference](docs/en/reference.md) — parameters, troubleshooting, debugging commands
 
 ## License
 

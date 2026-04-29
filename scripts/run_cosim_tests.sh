@@ -10,12 +10,16 @@ TESTS_DIR="${COSIM_DIR}/tests"
 KERNELS_DIR="${TESTS_DIR}/kernels"
 LAUNCH_SCRIPT="${SCRIPT_DIR}/cosim_launch.sh"
 
+# shellcheck source=cosim_lib.sh
+source "${SCRIPT_DIR}/cosim_lib.sh"
+
 SESSION_NAME="${SESSION_NAME:-qemu-cosim-tests}"
 SCREEN_LOG="${SCREEN_LOG:-}"
 BOOT_TIMEOUT_SECS="${BOOT_TIMEOUT_SECS:-240}"
 TEST_TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-60}"
 KEEP_ALIVE_ON_SUCCESS=0
 RUN_ALL=0
+REPEAT_COUNT=0
 FILTER=""
 PASSTHROUGH_ARGS=()
 SCREEN_LOG_SET=0
@@ -44,6 +48,7 @@ Usage: $0 [options] <operator-filter>
 
 Options:
   --all                  Run all operators, one fresh cosim session each
+  --repeat N             Run the same operator N times (fresh session each)
   --keep-alive           Leave QEMU + gem5 running after a successful test
   --session-name NAME    detached session name (default: qemu-cosim-tests)
   --screen-log PATH      console log path (default: /tmp/qemu-cosim-tests.log)
@@ -59,6 +64,7 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --all)              RUN_ALL=1; shift ;;
+        --repeat)           REPEAT_COUNT="$2"; shift 2 ;;
         --keep-alive)       KEEP_ALIVE_ON_SUCCESS=1; shift ;;
         --session-name)     SESSION_NAME="$2"; shift 2 ;;
         --screen-log)       SCREEN_LOG="$2"; SCREEN_LOG_SET=1; shift 2 ;;
@@ -70,11 +76,120 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$SCREEN_LOG_SET" -eq 0 ]]; then
-    SCREEN_LOG="/tmp/${SESSION_NAME}.log"
+COSIM_RUN_ID="${COSIM_RUN_ID:-$(generate_run_id)}"
+export COSIM_RUN_ID
+
+if [[ "$REPEAT_COUNT" -gt 0 && "$KEEP_ALIVE_ON_SUCCESS" -eq 1 ]]; then
+    error "--keep-alive and --repeat cannot be used together"
 fi
-SESSION_DIR="/tmp/${SESSION_NAME}.session"
+if [[ "$REPEAT_COUNT" -gt 0 && "$RUN_ALL" -eq 1 ]]; then
+    error "--all and --repeat cannot be used together"
+fi
+
+if [[ "$SCREEN_LOG_SET" -eq 0 ]]; then
+    SCREEN_LOG="$(cosim_screen_log "$COSIM_RUN_ID" "$SESSION_NAME")"
+fi
+SESSION_DIR="$(cosim_session_dir "$COSIM_RUN_ID" "$SESSION_NAME")"
 SESSION_FIFO="${SESSION_DIR}/console.in"
+
+# ---- Repeat mode: run same operator N times with fresh sessions ----
+
+if [[ "$REPEAT_COUNT" -gt 0 && "$RUN_ALL" -eq 0 ]]; then
+    [[ -n "$FILTER" ]] || { echo "Usage: $0 --repeat N <operator>"; exit 1; }
+
+    # Resolve exact operator name for artifact paths
+    REPEAT_OPERATOR=""
+    while IFS= read -r k; do
+        k="${k%.cpp}"
+        if [[ "$k" == *"$FILTER"* ]]; then
+            REPEAT_OPERATOR="$k"
+        fi
+    done < <(find "$KERNELS_DIR" -maxdepth 1 -type f -name '*.cpp' -printf '%f\n' | sort)
+    REPEAT_OPERATOR="${REPEAT_OPERATOR:-$FILTER}"
+
+    REPEAT_PASSED=0
+    REPEAT_FAILED=0
+    REPEAT_INFRA_FAIL=0
+    declare -a REPEAT_MATRIX=()
+
+    repeat_partial_summary() {
+        echo ""
+        echo "============================================================"
+        echo "  Repeat-Run Partial Summary (interrupted)"
+        echo "  Operator: $FILTER"
+        echo "  Completed: $((REPEAT_PASSED + REPEAT_FAILED)) / $REPEAT_COUNT"
+        echo "  Passed: $REPEAT_PASSED  Failed: $REPEAT_FAILED  Infra failures: $REPEAT_INFRA_FAIL"
+        echo "============================================================"
+        for entry in "${REPEAT_MATRIX[@]}"; do
+            echo "  $entry"
+        done
+        echo "============================================================"
+    }
+    trap 'repeat_partial_summary; exit 130' INT TERM
+
+    for ((i=1; i<=REPEAT_COUNT; i++)); do
+        iter_run_id="$(generate_run_id)"
+        sub_session="${SESSION_NAME}-repeat-${i}"
+        sub_log="/tmp/${sub_session}.log"
+        iter_artifact_dir="$(cosim_artifact_dir "$COSIM_DIR" "$REPEAT_OPERATOR" "$iter_run_id")"
+
+        step "Repeat iteration $i/$REPEAT_COUNT (run-ID: $iter_run_id)"
+
+        iter_category_file="/tmp/cosim-category-${iter_run_id}"
+        if COSIM_RUN_ID="$iter_run_id" COSIM_CATEGORY_FILE="$iter_category_file" "$0" \
+            --session-name "$sub_session" \
+            --boot-timeout "$BOOT_TIMEOUT_SECS" \
+            --test-timeout "$TEST_TIMEOUT_SECS" \
+            "${PASSTHROUGH_ARGS[@]}" \
+            "$FILTER"; then
+            run_rc=0
+            category="$COSIM_CAT_TEST_PASS"
+        else
+            run_rc=$?
+            category="$COSIM_CAT_INFRA_UNKNOWN"
+        fi
+        if [[ -f "$iter_category_file" ]]; then
+            category="$(cat "$iter_category_file")"
+            rm -f "$iter_category_file"
+        fi
+
+        if [[ "$run_rc" -eq 0 ]]; then
+            REPEAT_PASSED=$((REPEAT_PASSED + 1))
+        else
+            REPEAT_FAILED=$((REPEAT_FAILED + 1))
+            if is_infra_failure "$category"; then
+                REPEAT_INFRA_FAIL=$((REPEAT_INFRA_FAIL + 1))
+            fi
+        fi
+        if [[ -d "$iter_artifact_dir" ]]; then
+            actual_artifact_dir="$iter_artifact_dir"
+        elif [[ -d "${COSIM_DIR}/artifacts/standalone/${iter_run_id}" ]]; then
+            actual_artifact_dir="${COSIM_DIR}/artifacts/standalone/${iter_run_id}"
+        else
+            actual_artifact_dir="(none)"
+        fi
+        REPEAT_MATRIX+=("$i | $iter_run_id | $category | exit=$run_rc | artifacts=${actual_artifact_dir}")
+    done
+
+    echo ""
+    echo "============================================================"
+    echo "  Repeat-Run Results"
+    echo "  Operator: $FILTER"
+    echo "  Total: $REPEAT_COUNT  Passed: $REPEAT_PASSED  Failed: $REPEAT_FAILED  Infra failures: $REPEAT_INFRA_FAIL"
+    echo "============================================================"
+    echo "  # | Run-ID | Category | Exit | Artifacts"
+    echo "  --|--------|----------|------|----------"
+    for entry in "${REPEAT_MATRIX[@]}"; do
+        echo "  $entry"
+    done
+    echo "============================================================"
+
+    if [[ "$REPEAT_INFRA_FAIL" -gt 0 ]]; then
+        exit 1
+    fi
+    [[ "$REPEAT_FAILED" -eq 0 ]]
+    exit $?
+fi
 
 if [[ "$RUN_ALL" -eq 1 ]]; then
     mapfile -t ALL_TESTS < <(find "$KERNELS_DIR" -maxdepth 1 -type f -name '*.cpp' -printf '%f\n' | sed 's/\.cpp$//' | sort)
@@ -85,10 +200,8 @@ if [[ "$RUN_ALL" -eq 1 ]]; then
 
     for test_name in "${ALL_TESTS[@]}"; do
         sub_session="${SESSION_NAME}-${test_name}"
-        sub_log="/tmp/${sub_session}.log"
-        if "$0" \
+        if COSIM_RUN_ID="$(generate_run_id)" "$0" \
             --session-name "$sub_session" \
-            --screen-log "$sub_log" \
             --boot-timeout "$BOOT_TIMEOUT_SECS" \
             --test-timeout "$TEST_TIMEOUT_SECS" \
             "${PASSTHROUGH_ARGS[@]}" \
@@ -117,16 +230,29 @@ fi
 [[ -n "$FILTER" ]] || usage
 
 cleanup_session() {
-    if [[ -n "${LAUNCH_PID:-}" ]]; then
+    if [[ -n "${LAUNCH_PID:-}" ]] && kill -0 "$LAUNCH_PID" 2>/dev/null; then
         kill -TERM -- "-${LAUNCH_PID}" >/dev/null 2>&1 || true
-        sleep 1
-        kill -KILL -- "-${LAUNCH_PID}" >/dev/null 2>&1 || true
+        local wait_count=0
+        while kill -0 "$LAUNCH_PID" 2>/dev/null && [[ $wait_count -lt 15 ]]; do
+            sleep 1
+            wait_count=$((wait_count + 1))
+        done
+        if kill -0 "$LAUNCH_PID" 2>/dev/null; then
+            kill -KILL -- "-${LAUNCH_PID}" >/dev/null 2>&1 || true
+        fi
     fi
-    docker rm -f gem5-cosim >/dev/null 2>&1 || true
+    local cname
+    cname="$(cosim_container_name "${COSIM_RUN_ID:-}")"
+    docker rm -f "$cname" >/dev/null 2>&1 || true
     rm -rf "$SESSION_DIR" >/dev/null 2>&1 || true
-    # Clean up single-GPU and multi-GPU socket/shmem paths
-    rm -f /tmp/gem5-mi300x.sock /dev/shm/mi300x-vram /dev/shm/cosim-guest-ram 2>/dev/null || true
-    rm -f /tmp/gem5-mi300x-[0-9]*.sock /dev/shm/mi300x-vram-[0-9]* 2>/dev/null || true
+    rm -f "/tmp/cosim-launcher-category-${COSIM_RUN_ID:-}.txt" "/tmp/cosim-test-done-${COSIM_RUN_ID:-}" 2>/dev/null || true
+    if [[ -n "${COSIM_RUN_ID:-}" ]]; then
+        rm -f "/tmp/gem5-mi300x-${COSIM_RUN_ID}.sock" 2>/dev/null || true
+        rm -f "/tmp/gem5-mi300x-${COSIM_RUN_ID}-"[0-9]*.sock 2>/dev/null || true
+        rm -f "/dev/shm/mi300x-vram-${COSIM_RUN_ID}" 2>/dev/null || true
+        rm -f "/dev/shm/mi300x-vram-${COSIM_RUN_ID}-"[0-9]* 2>/dev/null || true
+        rm -f "/dev/shm/cosim-guest-ram-${COSIM_RUN_ID}" 2>/dev/null || true
+    fi
 }
 
 session_alive() {
@@ -138,18 +264,49 @@ send_guest() {
     printf '%s\n' "$line" >&$CONTROL_FD
 }
 
+record_category() {
+    local cat="$1"
+    local use_launcher="${2:-false}"
+    if [[ "$use_launcher" == "true" ]]; then
+        local launcher_cat_file="/tmp/cosim-launcher-category-${COSIM_RUN_ID}.txt"
+        if [[ -f "$launcher_cat_file" ]]; then
+            local launcher_cat
+            launcher_cat="$(cat "$launcher_cat_file")"
+            rm -f "$launcher_cat_file"
+            if [[ -n "$launcher_cat" && "$launcher_cat" != "$COSIM_CAT_TEST_PASS" ]]; then
+                cat="$launcher_cat"
+            fi
+        fi
+    fi
+    if [[ -n "${COSIM_CATEGORY_FILE:-}" ]]; then
+        echo "$cat" > "$COSIM_CATEGORY_FILE"
+    fi
+}
+
 # shellcheck disable=SC2317,SC2329
 on_interrupt() {
     echo ""
-    warn "Interrupted. The current QEMU + gem5 session remains running."
-    warn "Launcher PID: ${LAUNCH_PID:-unknown}"
-    warn "Console log: ${SCREEN_LOG}"
-    warn "Console pipe: ${SESSION_FIFO}"
-    warn "Cleanup: kill -TERM -- -${LAUNCH_PID:-0}; docker rm -f gem5-cosim"
+    if [[ "$KEEP_ALIVE_ON_SUCCESS" -eq 1 ]]; then
+        warn "Interrupted. Session preserved (--keep-alive)."
+        warn "Launcher PID: ${LAUNCH_PID:-unknown}"
+        warn "Console log: ${SCREEN_LOG}"
+        warn "Cleanup: kill -TERM -- -${LAUNCH_PID:-0}; docker rm -f $(cosim_container_name "${COSIM_RUN_ID:-}")"
+    else
+        warn "Interrupted. Cleaning up session..."
+        cleanup_session
+    fi
     exit 130
 }
 
+on_exit() {
+    local rc=$?
+    if [[ $rc -ne 0 && "$KEEP_ALIVE_ON_SUCCESS" -eq 0 ]]; then
+        cleanup_session
+    fi
+}
+
 trap on_interrupt INT TERM
+trap on_exit EXIT
 
 match_test() {
     local matches=()
@@ -174,7 +331,7 @@ match_test() {
 }
 
 TEST_NAME="$(match_test)"
-GUEST_SCRIPT=".cosim_guest_run.${SESSION_NAME}.${TEST_NAME}.sh"
+GUEST_SCRIPT=".cosim_guest_run.${COSIM_RUN_ID}.${TEST_NAME}.sh"
 GUEST_SCRIPT_HOST="${TESTS_DIR}/${GUEST_SCRIPT}"
 TOKEN="COSIM_TEST_DONE_${TEST_NAME}_$(date +%s)"
 
@@ -199,10 +356,12 @@ while true; do
     fi
     if ! session_alive; then
         rm -f "$GUEST_SCRIPT_HOST"
+        record_category "$COSIM_CAT_QEMU_EXIT" "true"
         error "[${TEST_NAME}] detached session exited during boot. Log tail:\n$(tail -n 40 "$SCREEN_LOG" 2>/dev/null)"
     fi
     now_ts=$(date +%s)
     if (( now_ts - start_ts >= BOOT_TIMEOUT_SECS )); then
+        record_category "$COSIM_CAT_BOOT_TIMEOUT" "true"
         error "[${TEST_NAME}] guest did not reach login prompt within ${BOOT_TIMEOUT_SECS}s"
     fi
     sleep 2
@@ -249,6 +408,7 @@ while true; do
     fi
     if ! session_alive; then
         rm -f "$GUEST_SCRIPT_HOST"
+        record_category "$COSIM_CAT_QEMU_EXIT" "true"
         error "[${TEST_NAME}] detached session exited before the test finished. Log tail:\n$(tail -n 80 "$SCREEN_LOG" 2>/dev/null)"
     fi
     sleep 1
@@ -256,11 +416,30 @@ done
 
 rm -f "$GUEST_SCRIPT_HOST"
 
+if [[ "$result_rc" -eq 0 ]]; then
+    record_category "$COSIM_CAT_TEST_PASS"
+else
+    record_category "$COSIM_CAT_TEST_FAIL"
+    runner_artifact_dir="$(cosim_artifact_dir "$COSIM_DIR" "${TEST_NAME}" "$COSIM_RUN_ID")"
+    mkdir -p "$runner_artifact_dir"
+    if [[ -f "$SCREEN_LOG" ]]; then
+        cp "$SCREEN_LOG" "${runner_artifact_dir}/qemu-console.log" 2>/dev/null || true
+    fi
+    cname="$(cosim_container_name "$COSIM_RUN_ID")"
+    docker logs "$cname" > "${runner_artifact_dir}/gem5.log" 2>&1 || true
+    echo "run_id=${COSIM_RUN_ID}" > "${runner_artifact_dir}/metadata.txt"
+    echo "category=${COSIM_CAT_TEST_FAIL}" >> "${runner_artifact_dir}/metadata.txt"
+    echo "test=${TEST_NAME}" >> "${runner_artifact_dir}/metadata.txt"
+    echo "exit_code=${result_rc}" >> "${runner_artifact_dir}/metadata.txt"
+fi
+
 if [[ "$KEEP_ALIVE_ON_SUCCESS" -eq 1 && "$result_rc" -eq 0 ]]; then
     info "[${TEST_NAME}] Leaving QEMU + gem5 running (--keep-alive)"
     info "Console log: ${SCREEN_LOG}"
     info "Console pipe: ${SESSION_FIFO}"
 else
+    # Signal launcher that test completed normally — skip artifact capture on TERM
+    touch "/tmp/cosim-test-done-${COSIM_RUN_ID}" 2>/dev/null || true
     step "[${TEST_NAME}] Cleaning up detached session..."
     cleanup_session
 fi

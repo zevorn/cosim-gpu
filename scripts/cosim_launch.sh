@@ -19,10 +19,20 @@
 
 set -euo pipefail
 
-# ---- Path defaults ----
+# ---- Shared library ----
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COSIM_DIR="$(dirname "$SCRIPT_DIR")"
+
+# shellcheck source=cosim_lib.sh
+source "${SCRIPT_DIR}/cosim_lib.sh"
+
+# ---- Run-ID ----
+
+COSIM_RUN_ID="${COSIM_RUN_ID:-$(generate_run_id)}"
+export COSIM_RUN_ID
+
+# ---- Path defaults ----
 GEM5_DIR="${COSIM_DIR}/gem5"
 RESOURCES_DIR="${COSIM_DIR}/gem5-resources"
 
@@ -30,16 +40,16 @@ GEM5_BIN="${GEM5_DIR}/build/VEGA_X86/gem5.opt"
 # shellcheck disable=SC2034
 GEM5_CONFIG="${GEM5_DIR}/configs/example/gpufs/mi300_cosim.py"
 GEM5_DOCKER_IMAGE="${GEM5_DOCKER_IMAGE:-gem5-run:local}"
-GEM5_CONTAINER="gem5-cosim"
+GEM5_CONTAINER="$(cosim_container_name "$COSIM_RUN_ID")"
 
 QEMU_BIN="${COSIM_DIR}/qemu/build/qemu-system-x86_64"
 DISK_IMAGE="${RESOURCES_DIR}/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70"
 KERNEL="${RESOURCES_DIR}/src/x86-ubuntu-gpu-ml/vmlinux-rocm70"
 GPU_ROM="${RESOURCES_DIR}/src/x86-ubuntu-gpu-ml/files/mi300.rom"
 
-SOCKET_PATH="/tmp/gem5-mi300x.sock"
-SHMEM_PATH="/mi300x-vram"
-SHMEM_HOST_PATH="/cosim-guest-ram"
+SOCKET_PATH="/tmp/gem5-mi300x-${COSIM_RUN_ID}.sock"
+SHMEM_PATH="/mi300x-vram-${COSIM_RUN_ID}"
+SHMEM_HOST_PATH="/cosim-guest-ram-${COSIM_RUN_ID}"
 
 HOST_MEM="8G"
 HOST_CPUS="4"
@@ -51,6 +61,14 @@ QEMU_TRACE=""
 SHARE_DIR=""
 COSIM_BACKEND="vfio-user"
 NUM_GPUS="1"
+FORCE_CLEAN=""
+FORCE_CLEAN_CONFIRM=""
+
+SESSION_DIR="/tmp/cosim-${COSIM_RUN_ID}.session"
+SCREEN_LOG="/tmp/cosim-${COSIM_RUN_ID}.log"
+ARTIFACT_DIR="${COSIM_DIR}/artifacts/standalone/${COSIM_RUN_ID}"
+COSIM_FAILURE_CATEGORY=""
+COSIM_SECONDARY_STATUS=""
 
 # ---- Colors ----
 
@@ -90,6 +108,8 @@ Options:
   --cosim-backend MODE    vfio-user (default) or legacy
   --num-gpus N            Number of GPU instances (default: 1)
   --timeout SECS          gem5 init timeout (default: 120)
+  --force-clean           List orphaned cosim resources (dry-run)
+  --confirm               With --force-clean, actually delete orphans
   -h, --help              Show this help
 EOF
     exit 0
@@ -113,10 +133,25 @@ while [[ $# -gt 0 ]]; do
         --cosim-backend) COSIM_BACKEND="$2";   shift 2 ;;
         --num-gpus)      NUM_GPUS="$2";         shift 2 ;;
         --timeout)       GEM5_TIMEOUT="$2";     shift 2 ;;
+        --force-clean)   FORCE_CLEAN=1;         shift ;;
+        --confirm)       FORCE_CLEAN_CONFIRM=1; shift ;;
         -h|--help)       usage ;;
         *)               echo "Unknown option: $1"; usage ;;
     esac
 done
+
+# Handle --force-clean mode
+if [[ -n "$FORCE_CLEAN" ]]; then
+    info "Force-clean mode (run-ID: $COSIM_RUN_ID)"
+    if [[ -n "$FORCE_CLEAN_CONFIRM" ]]; then
+        warn "Deleting orphaned cosim resources..."
+        force_clean_orphans "true"
+    else
+        info "Dry-run: listing orphaned cosim resources..."
+        force_clean_orphans "false"
+    fi
+    exit 0
+fi
 
 # ---- Multi-GPU validation ----
 
@@ -170,29 +205,65 @@ docker info >/dev/null 2>&1 || error "Docker not running"
 docker image inspect "$GEM5_DOCKER_IMAGE" >/dev/null 2>&1 || \
     error "Docker image '$GEM5_DOCKER_IMAGE' not found.\n  Build: cd scripts && docker build -t gem5-run:local -f Dockerfile.run ."
 
+# ---- Session and manifest setup ----
+
+mkdir -p "$SESSION_DIR"
+manifest_init "$SESSION_DIR"
+
+manifest_add "runtime" "container" "$GEM5_CONTAINER"
+manifest_add "runtime" "shmem" "$SHMEM_HOST_FILE"
+for ((g=0; g<NUM_GPUS; g++)); do
+    manifest_add "runtime" "shmem" "$(gpu_shmem_file "$g")"
+    manifest_add "runtime" "socket" "$(gpu_socket_path "$g")"
+done
+manifest_add "runtime" "directory" "$SESSION_DIR"
+manifest_add "artifact" "directory" "$ARTIFACT_DIR"
+
 # ---- Cleanup handler ----
 
 cleanup() {
+    local exit_code="${1:-$?}"
     echo ""
-    info "Shutting down co-simulation..."
-    docker rm -f "$GEM5_CONTAINER" >/dev/null 2>&1 || true
-    rm -f "$SHMEM_HOST_FILE" 2>/dev/null || true
-    for ((g=0; g<NUM_GPUS; g++)); do
-        rm -f "$(gpu_shmem_file "$g")" 2>/dev/null || true
-        rm -f "$(gpu_socket_path "$g")" 2>/dev/null || true
-    done
-    info "Done."
+
+    # If runner signaled normal completion, treat as test_pass regardless
+    if [[ -f "/tmp/cosim-test-done-${COSIM_RUN_ID}" ]]; then
+        rm -f "/tmp/cosim-test-done-${COSIM_RUN_ID}"
+        COSIM_FAILURE_CATEGORY="$COSIM_CAT_TEST_PASS"
+    elif [[ -z "$COSIM_FAILURE_CATEGORY" ]]; then
+        if [[ "$exit_code" -eq 0 ]]; then
+            COSIM_FAILURE_CATEGORY="$COSIM_CAT_TEST_PASS"
+        else
+            COSIM_FAILURE_CATEGORY="$COSIM_CAT_INFRA_UNKNOWN"
+        fi
+    fi
+
+    # Write category to a file outside session dir (session dir is deleted during cleanup)
+    echo "$COSIM_FAILURE_CATEGORY" > "/tmp/cosim-launcher-category-${COSIM_RUN_ID}.txt" 2>/dev/null || true
+
+    if [[ "$COSIM_FAILURE_CATEGORY" != "$COSIM_CAT_TEST_PASS" ]]; then
+        info "Capturing diagnostic artifacts (category: $COSIM_FAILURE_CATEGORY)..."
+        capture_artifacts "$ARTIFACT_DIR" "$GEM5_CONTAINER" "$SCREEN_LOG" \
+            "$COSIM_RUN_ID" "$COSIM_FAILURE_CATEGORY"
+    fi
+
+    info "Shutting down co-simulation (run-ID: $COSIM_RUN_ID)..."
+    cleanup_from_manifest "$GEM5_CONTAINER"
+
+    if verify_cleanup 10 "$GEM5_CONTAINER"; then
+        info "Teardown verified."
+    else
+        COSIM_SECONDARY_STATUS="$COSIM_CAT_CLEANUP_FAIL"
+        warn "Teardown verification failed: some resources may remain."
+    fi
+
+    info "Run: $COSIM_RUN_ID | Category: $COSIM_FAILURE_CATEGORY${COSIM_SECONDARY_STATUS:+ | Secondary: $COSIM_SECONDARY_STATUS}"
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup' EXIT
+trap 'COSIM_FAILURE_CATEGORY="$COSIM_CAT_INTERRUPT"; exit 130' INT TERM
 
-# ---- Clean up stale state ----
+# ---- Preflight audit ----
 
-docker rm -f "$GEM5_CONTAINER" >/dev/null 2>&1 || true
-rm -f "$SHMEM_HOST_FILE" 2>/dev/null || true
-for ((g=0; g<NUM_GPUS; g++)); do
-    rm -f "$(gpu_shmem_file "$g")" 2>/dev/null || true
-    rm -f "$(gpu_socket_path "$g")" 2>/dev/null || true
-done
+run_preflight_audit | tee "${SESSION_DIR}/preflight.log"
 
 # ==================================================================
 # Step 1: Start gem5 in Docker
@@ -260,18 +331,58 @@ while true; do
     # Check container still running
     if [[ "$(docker inspect -f '{{.State.Running}}' "$GEM5_CONTAINER" 2>/dev/null)" != "true" ]]; then
         echo ""
+        COSIM_FAILURE_CATEGORY="$COSIM_CAT_GEM5_EXIT"
         error "gem5 container exited unexpectedly. Logs:\n$(docker logs "$GEM5_CONTAINER" 2>&1 | tail -20)"
     fi
 
     sleep 2
     ELAPSED=$((ELAPSED + 2))
     if [[ $ELAPSED -ge $GEM5_TIMEOUT ]]; then
+        COSIM_FAILURE_CATEGORY="$COSIM_CAT_GEM5_INIT_TIMEOUT"
         error "gem5 did not become ready in ${GEM5_TIMEOUT}s.\n  Logs: docker logs $GEM5_CONTAINER"
     fi
 
     # Progress indicator
     if (( ELAPSED % 10 == 0 )); then
         echo -n "."
+    fi
+done
+
+# ==================================================================
+# Step 2.5: Pre-launch health check
+# ==================================================================
+
+step "Running pre-launch health check..."
+
+parse_size_bytes() {
+    local val="$1"
+    local num="${val%%[GgMmKkTt]*}"
+    local suffix="${val##*[0-9]}"
+    case "${suffix,,}" in
+        gib|g) echo $((num * 1024 * 1024 * 1024)) ;;
+        mib|m) echo $((num * 1024 * 1024)) ;;
+        kib|k) echo $((num * 1024)) ;;
+        tib|t) echo $((num * 1024 * 1024 * 1024 * 1024)) ;;
+        *)     echo "$num" ;;
+    esac
+}
+
+EXPECTED_VRAM_BYTES="$(parse_size_bytes "$VRAM_SIZE")"
+EXPECTED_RAM_BYTES="$(parse_size_bytes "$HOST_MEM")"
+
+HEALTH_MSG=""
+for ((g=0; g<NUM_GPUS; g++)); do
+    if HEALTH_MSG="$(check_readiness \
+            "$(gpu_socket_path "$g")" \
+            "$(gpu_shmem_file "$g")" \
+            "$SHMEM_HOST_FILE" \
+            "$GEM5_CONTAINER" \
+            "$EXPECTED_VRAM_BYTES" \
+            "$EXPECTED_RAM_BYTES")"; then
+        info "Health check GPU $g passed."
+    else
+        COSIM_FAILURE_CATEGORY="$COSIM_CAT_READINESS_FAIL"
+        error "Pre-launch health check failed (GPU $g): $HEALTH_MSG"
     fi
 done
 
@@ -285,6 +396,7 @@ VRAM_BYTES=$((16 * 1024 * 1024 * 1024))
 step "Starting QEMU (Q35 + KVM, backend=$COSIM_BACKEND)..."
 
 echo "============================================================"
+echo "  Run-ID:     $COSIM_RUN_ID"
 echo "  Machine:    Q35 + KVM"
 echo "  Backend:    $COSIM_BACKEND"
 echo "  Num GPUs:   $NUM_GPUS"
@@ -364,5 +476,11 @@ if [[ -n "$SHARE_DIR" ]]; then
     info "Sharing host dir: $SHARE_DIR (mount: mount -t 9p -o trans=virtio cosim_share /mnt)"
 fi
 
-# Run QEMU in foreground with interactive serial console
-exec "${QEMU_CMD[@]}"
+# Run QEMU in foreground — do NOT exec, so the EXIT trap runs on QEMU exit
+if "${QEMU_CMD[@]}"; then
+    QEMU_RC=0
+else
+    QEMU_RC=$?
+    COSIM_FAILURE_CATEGORY="${COSIM_FAILURE_CATEGORY:-$COSIM_CAT_QEMU_EXIT}"
+fi
+exit $QEMU_RC

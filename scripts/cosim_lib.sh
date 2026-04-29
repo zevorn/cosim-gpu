@@ -223,9 +223,23 @@ force_clean_orphans() {
         fi
     done < <(docker ps -a --filter "name=gem5-cosim-" --filter "status=exited" --filter "status=dead" --filter "status=created" --format '{{.Names}}' 2>/dev/null)
 
-    local f
+    _is_run_active() {
+        local rid="$1"
+        [[ -n "$rid" ]] || return 1
+        local cname="gem5-cosim-${rid}"
+        [[ "$(docker inspect -f '{{.State.Running}}' "$cname" 2>/dev/null)" == "true" ]]
+    }
+
+    local f rid
     for f in /tmp/gem5-mi300x-*.sock; do
         [[ -e "$f" ]] || continue
+        rid="${f#/tmp/gem5-mi300x-}"
+        rid="${rid%.sock}"
+        rid="${rid%%-[0-9]*}"
+        if _is_run_active "$rid"; then
+            echo "  active socket (skipped): $f"
+            continue
+        fi
         echo "  orphan socket: $f"
         found=1
         if [[ "$confirm" == "true" ]]; then
@@ -235,6 +249,16 @@ force_clean_orphans() {
 
     for f in /dev/shm/mi300x-vram /dev/shm/mi300x-vram-* /dev/shm/cosim-guest-ram /dev/shm/cosim-guest-ram-*; do
         [[ -e "$f" ]] || continue
+        rid=""
+        case "$f" in
+            /dev/shm/mi300x-vram-*)      rid="${f#/dev/shm/mi300x-vram-}" ;;
+            /dev/shm/cosim-guest-ram-*)   rid="${f#/dev/shm/cosim-guest-ram-}" ;;
+        esac
+        rid="${rid%%-[0-9]*}"
+        if [[ -n "$rid" ]] && _is_run_active "$rid"; then
+            echo "  active shmem (skipped): $f"
+            continue
+        fi
         echo "  orphan shmem: $f"
         found=1
         if [[ "$confirm" == "true" ]]; then

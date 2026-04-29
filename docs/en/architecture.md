@@ -70,18 +70,18 @@ The co-simulation system splits GPU workload execution across two processes: QEM
 
 ```
 +--------------------------------------+
-|  QEMU  (Q35 + KVM)                  |
+|  QEMU  (Q35 + KVM)                   |
 |  +--------------------------------+  |
 |  |  Guest Linux (Ubuntu 24)       |  |
 |  |  amdgpu driver (ROCm 7)        |  |
 |  |  ROCm userspace                |  |
 |  +--------------+-----------------+  |
-|                 | MMIO / Doorbell     |
+|                 | MMIO / Doorbell    |
 |  +--------------v-----------------+  |
 |  |  vfio-user-pci                 |  |
 |  |  (QEMU built-in device)        |  |
 |  +--------------+-----------------+  |
-|                 | vfio-user protocol  |
+|                 | vfio-user protocol |
 +-----------------+--------------------+
                   |  /tmp/gem5-mi300x.sock
                   |  (Unix socket)
@@ -92,7 +92,7 @@ The co-simulation system splits GPU workload execution across two processes: QEM
 |  |  (mi300x_vfio_user.cc)         |  |
 |  |  [libvfio-user server]         |  |
 |  +--------------+-----------------+  |
-|                 | AMDGPUDevice API    |
+|                 | AMDGPUDevice API   |
 |  +--------------v-----------------+  |
 |  |  AMDGPUDevice                  |  |
 |  |  PM4PacketProcessor            |  |

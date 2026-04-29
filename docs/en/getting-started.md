@@ -8,23 +8,22 @@ From building the components to running your first HIP GPU compute test.
 ## Overview
 
 ```
-+---------------------------------+     +------------------------------+
-|  QEMU (Q35 + KVM)              |     |  gem5 (inside Docker)        |
-|  +---------------------------+  |     |  +------------------------+  |
-|  | Guest Linux (Ubuntu 24.04)|  |     |  | MI300X GPU Model       |  |
-|  | amdgpu driver             |  |     |  | - Shader + CU          |  |
-|  | ROCm 7.0 / HIP runtime   |  |     |  | - PM4 / SDMA Engines   |  |
-|  +-----------+---------------+  |     |  | - Ruby Cache Hierarchy |  |
-|              | MMIO/Doorbell    |     |  +----------+-------------+  |
-|  +-----------v---------------+  |     |  +----------v-------------+  |
-|  | vfio-user-pci (built-in)  |<--------->| MI300XVfioUser Server  |  |
-|  +---------------------------+  |vfio-|  +------------------------+  |
-|                                 |user |                              |
-+---------------------------------+     +------------------------------+
-        |                                         |
-        v                                         v
-  /dev/shm/cosim-guest-ram              /dev/shm/mi300x-vram
-  (Guest Physical Memory, Shared)       (GPU VRAM, Shared)
++-----------------------------+       +----------------------------+
+|  QEMU  (Q35 + KVM)          |       |  gem5  (Docker)            |
+|  +-----------------------+  |       |  +----------------------+  |
+|  | Guest Linux           |  |       |  | MI300X GPU Model     |  |
+|  | amdgpu driver         |  |       |  |  Shader / CU / SDMA  |  |
+|  | ROCm 7.0 / HIP        |  |       |  |  PM4 / Ruby caches   |  |
+|  +----------+------------+  |       |  +---------+------------+  |
+|  +----------v------------+  |       |  +---------v------------+  |
+|  | vfio-user-pci         |<-------->|  | MI300XVfioUser       |  |
+|  | (QEMU built-in)       |  |vfio-  |  | (libvfio-user)       |  |
+|  +-----------------------+  |user   |  +----------------------+  |
++-----------------------------+       +----------------------------+
+        |                                       |
+        v                                       v
+  /dev/shm/cosim-guest-ram            /dev/shm/mi300x-vram
+  (shared guest RAM)                  (shared GPU VRAM)
 ```
 
 - **QEMU** handles CPU execution, Linux kernel boot, PCIe enumeration, and amdgpu driver loading.
@@ -121,7 +120,7 @@ If `gem5-resources` does not exist, it will be cloned automatically before the b
 ### Manual Build
 
 ```bash
-cd ../gem5-resources/src/x86-ubuntu-gpu-ml
+cd gem5-resources/src/x86-ubuntu-gpu-ml
 ./build.sh -var "qemu_path=/usr/sbin/qemu-system-x86_64"
 ```
 

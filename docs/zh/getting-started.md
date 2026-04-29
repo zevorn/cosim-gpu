@@ -8,23 +8,22 @@ QEMU + gem5 MI300X 联合仿真项目的快速入门指南。
 ## 架构概述
 
 ```
-+---------------------------------+     +------------------------------+
-|  QEMU (Q35 + KVM)              |     |  gem5 (Docker 容器内)        |
-|  +---------------------------+  |     |  +------------------------+  |
-|  | Guest Linux (Ubuntu 24.04)|  |     |  | MI300X GPU 模型        |  |
-|  | amdgpu 驱动               |  |     |  | - Shader + CU          |  |
-|  | ROCm 7.0 / HIP 运行时     |  |     |  | - PM4 / SDMA 引擎      |  |
-|  +-----------+---------------+  |     |  | - Ruby 缓存层次         |  |
-|              | MMIO/Doorbell    |     |  +----------+-------------+  |
-|  +-----------v---------------+  |     |  +----------v-------------+  |
-|  | vfio-user-pci (built-in)  |<--------->| MI300XVfioUser Server  |  |
-|  +---------------------------+  |vfio-|  +------------------------+  |
-|                                 |user |                              |
-+---------------------------------+     +------------------------------+
-        |                                         |
-        v                                         v
-  /dev/shm/cosim-guest-ram              /dev/shm/mi300x-vram
-  (Guest 物理内存, 共享)                 (GPU VRAM, 共享)
++-----------------------------+       +----------------------------+
+|  QEMU  (Q35 + KVM)          |       |  gem5  (Docker)            |
+|  +-----------------------+  |       |  +----------------------+  |
+|  | Guest Linux           |  |       |  | MI300X GPU Model     |  |
+|  | amdgpu driver         |  |       |  |  Shader / CU / SDMA  |  |
+|  | ROCm 7.0 / HIP        |  |       |  |  PM4 / Ruby caches   |  |
+|  +----------+------------+  |       |  +---------+------------+  |
+|  +----------v------------+  |       |  +---------v------------+  |
+|  | vfio-user-pci         |<-------->|  | MI300XVfioUser       |  |
+|  | (QEMU built-in)       |  |vfio-  |  | (libvfio-user)       |  |
+|  +-----------------------+  |user   |  +----------------------+  |
++-----------------------------+       +----------------------------+
+        |                                       |
+        v                                       v
+  /dev/shm/cosim-guest-ram            /dev/shm/mi300x-vram
+  (shared guest RAM)                  (shared GPU VRAM)
 ```
 
 - **QEMU** 负责：CPU 执行、Linux 内核引导、PCIe 枚举、amdgpu 驱动加载
@@ -121,7 +120,7 @@ make -j$(nproc)
 ### 手动构建
 
 ```bash
-cd ../gem5-resources/src/x86-ubuntu-gpu-ml
+cd gem5-resources/src/x86-ubuntu-gpu-ml
 ./build.sh -var "qemu_path=/usr/sbin/qemu-system-x86_64"
 ```
 

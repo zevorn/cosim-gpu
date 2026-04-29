@@ -161,16 +161,11 @@ cosim/
 
 ## 技术文档
 
-详细技术文档位于 [`docs/`](docs/) 目录下：
+详细技术文档位于 [`docs/`](docs/README.md) 目录下：
 
-- [完整使用指南](docs/zh/cosim-usage-guide.md) — 从编译到运行 HIP 测试的全流程
-- [技术笔记](docs/zh/cosim-technical-notes.md) — 架构设计、踩坑记录、修复方案
-- [MI300X 内存管理](docs/zh/mi300x-memory-management.md) — GART、地址翻译、内存映射
-- [GPU 全系统仿真指南](docs/zh/gpu-fs-guide.md) — gem5 单机 GPU FS 仿真复现
-- [Guest GPU 初始化流程](docs/zh/cosim-guest-gpu-init.md) — 驱动加载与设备初始化
-- [内存架构](docs/zh/cosim-memory-architecture.md) — 共享内存、VRAM 路由、DMA
-- [调试踩坑记录](docs/zh/cosim-debugging-pitfalls.md) — 常见问题与解决方案
-- [开发故事](docs/zh/cosim-dev-story.md) — 一天时间用 Claude 构建 cosim-gpu 的全过程
+- [快速入门](docs/zh/getting-started.md) — 从编译到运行首个 HIP 测试的全流程
+- [架构文档](docs/zh/architecture.md) — 系统设计、内存共享、地址翻译
+- [参考手册](docs/zh/reference.md) — 参数表、故障排查、调试命令
 
 ## 版本矩阵
 

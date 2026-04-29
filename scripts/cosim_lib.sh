@@ -221,7 +221,7 @@ force_clean_orphans() {
         if [[ "$confirm" == "true" ]]; then
             docker rm -f "$c" >/dev/null 2>&1 || true
         fi
-    done < <(docker ps -a --filter "name=gem5-cosim-" --format '{{.Names}}' 2>/dev/null)
+    done < <(docker ps -a --filter "name=gem5-cosim-" --filter "status=exited" --filter "status=dead" --filter "status=created" --format '{{.Names}}' 2>/dev/null)
 
     local f
     for f in /tmp/gem5-mi300x-*.sock; do
@@ -250,7 +250,7 @@ force_clean_orphans() {
             rm -f /tmp/gem5-mi300x.sock 2>/dev/null || true
         fi
     fi
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'gem5-cosim'; then
+    if docker ps -a --filter "status=exited" --filter "status=dead" --filter "status=created" --format '{{.Names}}' 2>/dev/null | grep -qx 'gem5-cosim'; then
         echo "  orphan legacy container: gem5-cosim"
         found=1
         if [[ "$confirm" == "true" ]]; then

@@ -10,3 +10,6 @@
 	path = gem5-resources
 	url = git@github.com:zevorn/gem5-resources.git
 	branch = cosim-gpu
+[submodule ".agents"]
+	path = .agents
+	url = git@github.com:zevorn/cosim-gpu-skills.git

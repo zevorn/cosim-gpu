@@ -162,7 +162,6 @@ Documentation:
     - LICENSE
     - README.md
     - README.zh.md
-    - plan-issue-3.md
   labels:
     - "area: documentation"
   description: >-

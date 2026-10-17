@@ -1,50 +1,77 @@
-# cosim-gpu
+<div align="center">
+  <h1 align="center">Cosim-GPU</h1>
+  <p><strong>YAML-driven QEMU + gem5 co-simulation for AMD MI300X</strong></p>
+</div>
 
-[中文](README.zh.md)
+<p align="center">
+  <img alt="Linux x86_64 and ARM64" src="https://img.shields.io/badge/Linux-x86%5F64%20%7C%20ARM64-FCC624?logo=linux&amp;logoColor=black">
+  <img alt="Rust 1.95+" src="https://img.shields.io/badge/Rust-1.95%2B-orange?logo=rust&amp;logoColor=white">
+  <img alt="QEMU device models" src="https://img.shields.io/badge/QEMU-vfio--user-FF6600">
+  <img alt="gem5 MI300X" src="https://img.shields.io/badge/gem5-MI300X-6f42c1">
+  <img alt="ROCm HIP" src="https://img.shields.io/badge/ROCm-HIP-ED1C24">
+  <img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-34a853">
+</p>
 
-Describe a QEMU machine and its simulated devices in YAML, then start the
-environment with `cosim`. Device models run in **gem5** or **QEMU** as native
-processes connected to the host through **vfio-user**. The MI300X model runs
-AMD ROCm/HIP workloads inside a Linux guest.
+<p align="center">
+  <strong>English</strong> ·
+  <a href="README.zh.md">简体中文</a>
+</p>
 
-```mermaid
-flowchart TD
-    YAML[samples: hosts, devices, machines, clusters] --> CLI[cosim launcher]
-    CLI --> H[Host QEMU]
-    CLI --> G[gem5 MI300X process]
-    CLI --> Q[QEMU device process]
-    H <-->|vfio-user| G
-    H <-->|vfio-user| Q
-    H --- P[Machine memory pool]
-    G --- P
-    Q --- P
-```
+<p align="center">
+  <a href="docs/en/getting-started.md">Getting started</a> ·
+  <a href="docs/en/topology.md">Topology reference</a> ·
+  <a href="docs/en/architecture.md">Architecture</a>
+</p>
 
-Each machine has one host, its devices and one shared memory file. The Rust
-launcher computes guest RAM and device-region offsets, prepares disk overlays,
-starts devices before their host, stops the host before its devices, and
-releases every resource it created. Device communication and simulator timing
-are implemented by the device models.
+Define Linux hosts and simulated devices in YAML, then launch a session with
+the Rust <code>cosim</code> CLI. Host QEMU connects to gem5 MI300X and QEMU
+device processes over **vfio-user**; ROCm/HIP workloads run in the Linux guest.
 
-## Start from a topology
+## Architecture
 
-```bash
+~~~mermaid
+flowchart LR
+    YAML[Topology YAML] --> CLI[Rust cosim launcher]
+
+    subgraph Linux host
+        CLI --> H[Host QEMU]
+        CLI --> G[gem5 MI300X process]
+        CLI --> Q[QEMU device process]
+        H <-->|vfio-user| G
+        H <-->|vfio-user| Q
+        H --- P[Machine memory pool]
+        G --- P
+        Q --- P
+        H --> Guest[Linux guest · ROCm/HIP]
+    end
+~~~
+
+The launcher prepares memory and disk resources, starts devices before the
+host, and cleans up the session. Device models implement device behavior and
+timing.
+
+## Quick start
+
+~~~bash
 just submodules
-just dev-image        # outside Linux, or with COSIM_ENV=container
+just dev-image        # Non-Linux hosts, or set COSIM_ENV=container
 
-# Inspect configuration without starting simulators
-just cosim validate samples/machines/gpu-8.yaml
-just cosim plan samples/machines/mixed-models.yaml
-just cosim graph samples/clusters/cluster-4x8.yaml
-
-# Build the complete x86_64 Linux guest-image workflow and run it
+# Build the toolchain and guest-image workflow, then start a sample machine
 just build-all
 just run samples/machines/single-gpu.yaml
-```
+~~~
 
-A machine can combine both device-model types:
+### Sample topologies
 
-```yaml
+- <code>samples/machines/single-gpu.yaml</code> — start a single-GPU guest.
+- <code>samples/machines/mixed-models.yaml</code> — combine gem5 and QEMU device models.
+- <code>samples/machines/gpu-8.yaml</code> — inspect an eight-GPU machine with a 96 GiB memory pool.
+- <code>samples/machines/host-only-aarch64.yaml</code> — check a host-only setup on ARM64.
+
+<details>
+<summary>Example: one machine with gem5 and QEMU devices</summary>
+
+~~~yaml
 version: 1
 imports:
   - hosts/qemu.yaml
@@ -57,100 +84,98 @@ machines:
     devices:
       - {use: mi300x, count: 2}
       - {use: qemu-edu}
-```
+~~~
 
-The QEMU device example serves the real `edu` PCI model through
-`x-vfio-user-server` from the QEMU built by `just build-qemu`.
-[Topology and runtime](docs/en/topology.md) describes templates, imports,
-storage, memory layouts, adapters and the session lifecycle.
+The QEMU device example serves the real <code>edu</code> PCI model through
+<code>x-vfio-user-server</code> from the QEMU built by <code>just build-qemu</code>.
 
-## Environment
+</details>
 
-The recipes that build QEMU, gem5, m5 and `cosim`, run topologies and run the
-Rust checks use `scripts/dev.sh`. They run natively on Linux when the
-dependencies are installed. Other systems, or `COSIM_ENV=container`, run them
-in a temporary development container from `scripts/Dockerfile.dev`. The source
-tree is mounted at its host path, and the container is removed when the command
-exits. The guest-image and HIP application builds and the shell launch
-interface (`just launch`, `just test`) keep their own Docker and host
-workflows.
+## Host and build environment
 
-- Rust launcher and configuration checks: Rust 1.95+, Cargo and just, or the
-  development container.
-- Sessions: Linux with glibc and `setpriv` (util-linux), QEMU for the host
-  architecture and `qemu-img`.
-- MI300X co-simulation: gem5 VEGA_X86, the QEMU submodule build with vfio-user
-  support and the guest image inputs; KVM for the Ubuntu guest.
-- QEMU device servers: QEMU built with `--enable-vfio-user-server`
-  (`just build-qemu`).
+### Launcher and configuration tools
 
-Guest-image builds and simulator artifacts require sufficient disk space. The
-memory-pool filesystem must accommodate the complete layout; the eight-GPU
-sample declares a 96 GiB pool.
+Use Rust 1.95+, Cargo and just for the launcher. Build recipes for QEMU, gem5,
+m5, topology runs and Rust checks use <code>scripts/dev.sh</code>. On non-Linux
+hosts or with <code>COSIM_ENV=container</code>, they use a temporary container
+from <code>scripts/Dockerfile.dev</code>. Guest-image and HIP builds, plus
+<code>just launch</code> and <code>just test</code>, use their own Docker workflows.
+
+### Linux host sessions
+
+- glibc and <code>setpriv</code> from util-linux.
+- QEMU for the host architecture and <code>qemu-img</code>.
+- x86_64 hosts use <code>qemu-system-x86_64</code>; ARM64 hosts use
+  <code>qemu-system-aarch64</code>.
+- <code>COSIM_HOST_ARCH</code> selects the build architecture and defaults to
+  the current host. gem5 builds into
+  <code>build/x86_64/VEGA_X86</code> on x86_64 and
+  <code>build/aarch64/VEGA_X86</code> on ARM64.
+
+### MI300X and QEMU device models
+
+- MI300X co-simulation needs gem5 VEGA_X86, QEMU with vfio-user support,
+  guest-image inputs, and KVM for the Ubuntu guest.
+- QEMU device servers need a build with
+  <code>--enable-vfio-user-server</code>.
+- The supplied Ubuntu/ROCm guest-image builder targets x86_64.
+- Guest-image builds and simulator artifacts need sufficient disk space. The
+  memory-pool filesystem must accommodate the complete machine layout.
 
 ## Commands
 
-- `just dev-image` builds the development container image; `just dev-shell`
-  opens a shell in a temporary container.
-- `just build-cosim` builds the release `cosim` executable.
-- `just run <yaml>` launches a topology; `just run-dev <yaml>` uses the
-  development build.
-- `just cosim <command>` runs `validate`, `plan`, `graph`, `schema` or `clean`.
-- `just build-qemu [jobs]` builds QEMU with KVM and vfio-user support.
-- `just build-gem5 [jobs]` builds gem5; use one job for memory-constrained
-  linking.
-- `just build-disk` builds the Ubuntu/ROCm guest image.
-- `just launch [options]` runs the shell-based QEMU/gem5 launch interface.
-- `just test --all` runs guest GPU tests in fresh sessions.
-- `just check-cosim` runs rustfmt, Clippy and the Rust tests.
-- `just test-cosim-integration` runs sessions with real QEMU processes, disks
-  and signals; `just test-cosim-vfio-user` adds a QEMU vfio-user device.
+### Inspect a topology
 
-Host-only verification with an installed QEMU:
+~~~bash
+just cosim validate samples/machines/gpu-8.yaml
+just cosim plan samples/machines/mixed-models.yaml
+just cosim graph samples/clusters/cluster-4x8.yaml
+~~~
 
-```bash
+### Build
+
+- <code>just build-cosim</code> builds the release launcher.
+- <code>just build-qemu [jobs]</code> builds QEMU with KVM and vfio-user support.
+- <code>just build-gem5 [jobs]</code> builds gem5; use one job for memory-constrained linking.
+- <code>just build-disk</code> builds the Ubuntu/ROCm guest image.
+
+### Run and test
+
+- <code>just run &lt;yaml&gt;</code> launches a topology.
+- <code>just run-dev &lt;yaml&gt;</code> launches with the development build.
+- <code>just launch [options]</code> runs the shell-based QEMU/gem5 interface.
+- <code>just test --all</code> runs guest GPU tests in fresh sessions.
+- <code>just check-cosim</code> runs rustfmt, Clippy and Rust tests.
+- <code>just test-cosim-integration</code> runs sessions with real QEMU processes, disks and signals.
+- <code>just test-cosim-vfio-user</code> adds a QEMU vfio-user device to the integration session.
+
+Host-only checks with an installed QEMU:
+
+~~~bash
 just run-dev samples/machines/host-only.yaml --run-for 1
-
-# ARM64 hardware
 just run-dev samples/machines/host-only-aarch64.yaml --run-for 1
-```
-
-ARM64 hosts use `qemu-system-aarch64`; x86_64 hosts use `qemu-system-x86_64`.
-`COSIM_HOST_ARCH` selects the build architecture and defaults to the current
-hardware. gem5 builds into `build/aarch64/VEGA_X86` on ARM64 and
-`build/x86_64/VEGA_X86` on x86_64. The supplied Ubuntu/ROCm guest-image builder
-targets x86_64.
+~~~
 
 The session directory contains the resolved plan, memory layouts, process logs
-and `verdict.json`. Guest driver initialization is provided by
-`cosim-gpu-setup.service` with:
+and <code>verdict.json</code>. Guest driver initialization is provided by
+<code>cosim-gpu-setup.service</code> with:
 
-```text
+~~~text
 amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 discovery=2
-```
+~~~
 
-## Source map
+## Repository map
 
-- `crates/cosim-topology/`: YAML documents, validated types, memory layouts
-  and adapter rendering.
-- `crates/cosim-runtime/`: plans, session resources, process supervision and
-  cleanup.
-- `crates/cosim-cli/`: the `cosim` command-line interface.
-- `samples/`: host, device, machine and cluster configurations.
-- `qemu/`: host QEMU and the QEMU device-server implementation.
-- `gem5/`: MI300X model and vfio-user interface.
-- `gem5-resources/`: guest image, kernel and GPU programs.
-- `configs/sst/`: SST network topology descriptions and integration experiments.
-- `scripts/`, `justfile`: build recipes, the development container and guest
-  test utilities.
-- `.agents/`: repository workflows.
+- **Rust workspace:** <code>crates/cosim-topology/</code>,
+  <code>crates/cosim-runtime/</code> and <code>crates/cosim-cli/</code>.
+- **Simulation models:** <code>gem5/</code>, <code>qemu/</code>,
+  <code>gem5-resources/</code> and <code>configs/sst/</code>.
+- **Project tools:** <code>samples/</code>, <code>scripts/</code>,
+  <code>justfile</code> and <code>.agents/</code>.
 
-## Documentation
+## More documentation
 
-- [Topology and runtime](docs/en/topology.md)
 - [Rust guidelines](docs/en/guidelines.md)
-- [Architecture](docs/en/architecture.md)
-- [Getting started](docs/en/getting-started.md)
 - [Reference](docs/en/reference.md)
 - [Contributing](docs/en/contributing.md)
 

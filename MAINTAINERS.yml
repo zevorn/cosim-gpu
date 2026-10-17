@@ -95,7 +95,7 @@
   files:
     - scripts/run_mi300x_fs.sh
   files-regex:
-    - ^gem5$
+    - ^third_party/gem5$
   labels:
     - "area: gem5 GPU backend"
   description: >-
@@ -142,11 +142,12 @@ Build System and CI:
     - scripts/ci/runtime_artifact.py
     - scripts/ci/verify_runtime_artifact.py
     - scripts/ci/verify_legacy_image.py
-    - scripts/ci/rocm_assets.py
     - scripts/ci/image_artifact.py
     - scripts/ci/verify_image_artifact.py
     - scripts/ci/prepare_image_host.sh
     - scripts/ci/verify_rocm_assets.py
+    - scripts/cosim-image
+    - scripts/__init__.py
   labels:
     - "area: build/CI"
   description: >-
@@ -172,15 +173,16 @@ Guest Image:
   maintainers:
     - zevorn
   files:
+    - resources/__init__.py
+    - resources/images/
     - scripts/cosim_guest_setup.sh
-    - scripts/patches/
   files-regex:
-    - ^gem5-resources$
+    - ^third_party/gem5-resources$
   labels:
     - "area: guest image"
   description: >-
-    The guest disk image, kernel and driver setup that the learning
-    environment boots, built from gem5-resources.
+    Guest operating system image profiles built with Packer and Ansible,
+    along with the kernel and driver setup used by cosim.
 
 Guest Tests:
   status: maintained
@@ -228,7 +230,7 @@ QEMU Frontend:
     - scripts/cosim_lib.sh
     - scripts/cosim_preflight.sh
   files-regex:
-    - ^qemu$
+    - ^third_party/qemu$
   labels:
     - "area: QEMU frontend"
   description: >-

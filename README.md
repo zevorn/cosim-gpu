@@ -56,9 +56,17 @@ timing.
 just dev-submodules
 just dev-image        # Non-Linux hosts, or set COSIM_ENV=container
 
-# Build the toolchain and guest-image workflow, then start a sample machine
+# Build the toolchain and x86_64 guest image on Linux with KVM
 just build-all
 just run-topology samples/machines/single-gpu.yaml --payload samples/payloads/ubuntu-rocm7_0.yaml
+~~~
+
+The first image build uses the selected profile under `resources/images/` and
+stores its verified disk and kernel under `build/images/`. Inspect the
+resolved profile and launch commands without building or starting processes:
+
+~~~bash
+just run-topology samples/machines/single-gpu.yaml --payload samples/payloads/ubuntu-rocm7_0.yaml --dry-run
 ~~~
 
 ### Sample topologies
@@ -128,10 +136,13 @@ from <code>scripts/Dockerfile.dev</code>. Guest-image and HIP builds, plus
 
 - **Rust workspace:** <code>crates/cosim-topology/</code>,
   <code>crates/cosim-runtime/</code> and <code>crates/cosim-cli/</code>.
-- **Simulation models:** <code>gem5/</code>, <code>qemu/</code>,
-  <code>gem5-resources/</code> and <code>configs/sst/</code>.
+- **Simulation models:** <code>third_party/gem5/</code>,
+  <code>third_party/qemu/</code>, <code>third_party/gem5-resources/</code> and
+  <code>configs/sst/</code>.
 - **Project tools:** <code>samples/</code>, <code>scripts/</code>,
   <code>justfile</code> and <code>.agents/</code>.
+- **Guest image profiles:** <code>resources/images/</code> with Packer/QEMU and
+  Ansible recipes for OS base images.
 
 ## More documentation
 

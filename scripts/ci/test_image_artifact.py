@@ -9,6 +9,10 @@ from pathlib import Path
 from image_artifact import image_bundle_root, image_manifest_member
 
 
+BUILD_IMAGE_ROOT = "build/images/guest/ubuntu/24.04/x86_64/rocm7_0"
+IMAGE_ROOT = "images/guest/ubuntu/24.04/x86_64/rocm7_0"
+
+
 class ImageManifestMemberTests(unittest.TestCase):
     def archive_with(self, path: str) -> zipfile.ZipFile:
         content = io.BytesIO()
@@ -17,19 +21,27 @@ class ImageManifestMemberTests(unittest.TestCase):
         return zipfile.ZipFile(io.BytesIO(content.getvalue()))
 
     def test_finds_manifest_in_build_rooted_diagnostic_artifact(self):
-        with self.archive_with("build/rocm-assets/manifest.json") as archive:
+        path = f"{BUILD_IMAGE_ROOT}/manifest.json"
+        with self.archive_with(path) as archive:
             member = image_manifest_member(archive)
         self.assertIsNotNone(member)
-        self.assertEqual(member.filename, "build/rocm-assets/manifest.json")
+        self.assertEqual(member.filename, path)
 
     def test_finds_manifest_in_existing_diagnostic_artifact(self):
-        with self.archive_with("rocm-assets/manifest.json") as archive:
+        path = f"{IMAGE_ROOT}/manifest.json"
+        with self.archive_with(path) as archive:
             member = image_manifest_member(archive)
         self.assertIsNotNone(member)
-        self.assertEqual(member.filename, "rocm-assets/manifest.json")
+        self.assertEqual(member.filename, path)
+
+    def test_finds_manifest_at_the_artifact_root(self):
+        with self.archive_with("manifest.json") as archive:
+            member = image_manifest_member(archive)
+        self.assertIsNotNone(member)
+        self.assertEqual(member.filename, "manifest.json")
 
     def test_missing_manifest_is_ignored(self):
-        with self.archive_with("build/rocm-assets/build.log") as archive:
+        with self.archive_with(f"{BUILD_IMAGE_ROOT}/build.log") as archive:
             self.assertIsNone(image_manifest_member(archive))
 
 

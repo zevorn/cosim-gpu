@@ -48,7 +48,7 @@ jobs:
       - name: Install console and YAML libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pexpect python3-yaml qemu-system-x86
+          sudo apt-get install -y python3-pexpect python3-yaml qemu-system-x86 qemu-utils
       - name: Check command completion and failure handling
         run: just test-ci
       - name: Verify legacy build image selection
@@ -111,10 +111,6 @@ jobs:
       - uses: extractions/setup-just@v4
         with:
           just-version: ${{ env.JUST_VERSION }}
-      - name: Init gem5-resources submodule only
-        run: |
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --depth 1 gem5-resources
       - name: Verify cosim modprobe parameters
         run: just check-modprobe-params
 

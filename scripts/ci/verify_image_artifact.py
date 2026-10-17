@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 import uuid
 
-from ci_lifecycle import Lifecycle
-from image_artifact import (
+from scripts.ci.ci_lifecycle import Lifecycle
+from scripts.ci.image_artifact import (
     ArtifactMissing, Scope, discard_download, find_image, github,
     record_selection, require_key,
 )
-from rocm_assets import input_key
+from scripts.ci.image_artifact import input_key
 
 
 def check(key: str, output: Path) -> None:

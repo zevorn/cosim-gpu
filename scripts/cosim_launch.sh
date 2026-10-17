@@ -3,8 +3,8 @@
 # QEMU + gem5 MI300X Co-simulation Launcher
 #
 # gem5 runs inside Docker (GPU-only, no kernel), while QEMU runs on the host
-# with KVM and connects through standard vfio-user. QEMU comes from the qemu
-# submodule build (just build-qemu) when present, else from PATH.
+# with KVM and connects through standard vfio-user. QEMU comes from the
+# third_party/qemu build (just build-qemu) when present, else from PATH.
 #
 # Usage:
 #   ./scripts/cosim_launch.sh                              # vfio-user
@@ -28,7 +28,7 @@ COSIM_RUN_ID="${COSIM_RUN_ID:-$(generate_run_id)}"
 export COSIM_RUN_ID
 
 # ---- Path defaults ----
-GEM5_DIR="${COSIM_DIR}/gem5"
+GEM5_DIR="${COSIM_DIR}/third_party/gem5"
 
 GEM5_BUILD_DIR="$(just --justfile "${COSIM_DIR}/justfile" \
     --evaluate gem5_build_dir)"
@@ -48,8 +48,9 @@ if [[ -z "${QEMU_BIN:-}" ]]; then
         QEMU_BIN="$(command -v qemu-system-x86_64 2>/dev/null || true)"
     fi
 fi
-DISK_IMAGE="${COSIM_DIR}/build/rocm-local-installed/disk"
-KERNEL="${COSIM_DIR}/build/rocm-local-installed/kernel"
+IMAGE_DIR="${COSIM_DIR}/build/images/guest/ubuntu/24.04/x86_64/rocm7_0"
+DISK_IMAGE="${IMAGE_DIR}/disk"
+KERNEL="${IMAGE_DIR}/kernel"
 
 SOCKET_PATH="/tmp/gem5-mi300x-${COSIM_RUN_ID}.sock"
 SHMEM_PATH="/mi300x-vram-${COSIM_RUN_ID}"
@@ -68,6 +69,7 @@ FORCE_CLEAN=""
 FORCE_CLEAN_CONFIRM=""
 
 SESSION_DIR="/tmp/cosim-${COSIM_RUN_ID}.session"
+DISK_OVERLAY="${SESSION_DIR}/root.qcow2"
 SCREEN_LOG="/tmp/cosim-${COSIM_RUN_ID}.log"
 ARTIFACT_DIR="${COSIM_DIR}/artifacts/standalone/${COSIM_RUN_ID}"
 COSIM_FAILURE_CATEGORY=""
@@ -95,9 +97,9 @@ QEMU + gem5 MI300X Co-simulation Launcher
 Usage: $0 [options]
 
 Options:
-  --disk-image PATH       Disk image  (default: build/rocm-local-installed/disk)
+  --disk-image PATH       Disk image (default: build/images/<profile>/disk)
   --kernel PATH           vmlinux
-                          (default: build/rocm-local-installed/kernel)
+                          (default: build/images/<profile>/kernel)
   --qemu-bin PATH         QEMU binary (default: build/qemu/qemu-system-x86_64,
                           else qemu-system-x86_64 from PATH)
   --gem5-bin PATH         gem5 binary
@@ -439,6 +441,16 @@ echo "============================================================"
 echo ""
 
 # Build QEMU command
+QEMU_IMG_BIN="${QEMU_IMG:-${COSIM_DIR}/build/qemu/qemu-img}"
+if [[ ! -x "$QEMU_IMG_BIN" ]]; then
+    QEMU_IMG_BIN="$(command -v "${QEMU_IMG:-qemu-img}" 2>/dev/null || true)"
+fi
+[[ -n "$QEMU_IMG_BIN" && -x "$QEMU_IMG_BIN" ]] || \
+    error "qemu-img not found. Install qemu-utils or set QEMU_IMG."
+cosim_create_disk_overlay \
+    "$QEMU_IMG_BIN" "$DISK_IMAGE" "$DISK_OVERLAY" >/dev/null
+manifest_add "runtime" "file" "$DISK_OVERLAY"
+
 QEMU_CMD=(
     "$QEMU_BIN"
     -machine q35
@@ -449,7 +461,7 @@ QEMU_CMD=(
     -numa "node,memdev=mem0"
     -kernel "$KERNEL"
     -append "$KCMDLINE"
-    -drive "file=$DISK_IMAGE,format=raw,if=virtio"
+    -drive "file=$DISK_OVERLAY,format=qcow2,if=virtio"
     -netdev "user,id=net0,hostfwd=tcp::2222-:22"
     -device "virtio-net-pci,netdev=net0"
 )

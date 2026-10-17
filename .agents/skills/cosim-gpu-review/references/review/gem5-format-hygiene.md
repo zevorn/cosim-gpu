@@ -15,14 +15,14 @@ isolated in a confirmed formatting-only commit.
    rewrites the same function does not excuse style-only churn in an earlier
    behavior commit.
 2. Compare ordinary diff output with whitespace-ignored output:
-   `git -C gem5 diff --stat <base>..<head>` and
-   `git -C gem5 diff -w --stat <base>..<head>`. For single commits, replace
+   `git -C third_party/gem5 diff --stat <base>..<head>` and
+   `git -C third_party/gem5 diff -w --stat <base>..<head>`. For single commits, replace
    the range with `<commit>^!`.
 3. Check formatter scope before accepting the patch. Prefer gem5 modified-range
    tooling such as `util/run-git-clang-format.py --pre-commit`, `git-clang-format
    --diff <base> HEAD --style=file`, or `util/style.py -m` from inside the
-   `gem5/` worktree.
-4. Run `git -C gem5 diff --check <range>` or the equivalent staged range check
+   `third_party/gem5/` worktree.
+4. Run `git -C third_party/gem5 diff --check <range>` or the equivalent staged range check
    before final acceptance.
 5. When formatter churn is found in a behavior commit, classify it as a commit
    hygiene defect until the churn is moved to a formatting-only commit or

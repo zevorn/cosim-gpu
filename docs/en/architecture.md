@@ -14,7 +14,8 @@ one memory pool.
 ```mermaid
 flowchart TD
     Y[YAML imports and templates] --> T[cosim-topology]
-    T --> P[Plan for the local system]
+    T --> I[Resolve optional image profile]
+    I --> P[Plan for the local system]
     P --> R[cosim-runtime session]
     subgraph M[Machine]
         H[QEMU host]
@@ -55,9 +56,9 @@ a configured guest serial message. The host stops before its devices.
 The workspace has three crates. `cosim-cli` depends on `cosim-topology` and
 `cosim-runtime`; the runtime depends on the topology crate.
 
-- `cosim-cli/src/main.rs`: Clap commands `validate`, `plan`, `graph`, `schema`,
-  `run` and `clean`; signal escalation, the standard-input lifeline, event
-  output and the verdict line.
+- `cosim-cli/src/main.rs`: Clap commands `validate`, `graph`, `schema`, `run`
+  and `clean`; `run --dry-run` inspects image cache state and prints the plan;
+  the normal run path builds or reuses the profile before launching.
 - `cosim-topology/src/raw.rs`, `model.rs`, `size.rs`: decoded input types,
   validated types (`Topology`, `Machine`, `Host`, `Device`, `Disk`) and
   `ByteSize`.
@@ -75,6 +76,11 @@ The workspace has three crates. `cosim-cli` depends on `cosim-topology` and
   file and lock owners, image creation, leases and overlays.
 - `cosim-runtime/src/manifest.rs`, `assets.rs`: `cosim clean` after launcher
   death or an abnormal exit, and local input checks.
+- `cosim-runtime/src/images.rs`: invokes the shared profile manager and turns
+  its verified disk and optional kernel artifacts into payload inputs.
+- `resources/images/`: shared Packer/QEMU template, Ansible entry point and
+  OS-specific profile data. `scripts/cosim-image` exposes the same manager to
+  Bash callers without starting the simulator.
 
 The topology API exposes `load`, `graph` and `schema`, and the validated types
 render launch arguments from `DeviceContext` and `HostContext`. The runtime API
@@ -202,7 +208,7 @@ programs aperture registers and page-table bases through MMIO.
 Relevant register state includes `fbBase`, `fbTop`, `fbOffset`, `agpBase`,
 `agpBot`, `agpTop`, `sysAddrL`, `sysAddrH`, `ptBase`, `ptStart` and `ptEnd`.
 Their storage and register conversions are implemented in
-`gem5/src/dev/amdgpu/amdgpu_vm.cc`.
+`third_party/gem5/src/dev/amdgpu/amdgpu_vm.cc`.
 
 GART entries occupy eight bytes each. The table offset for a GPU page is
 derived from the page index relative to the aperture. PM4 and SDMA use
@@ -267,11 +273,11 @@ independent of the Rust process-management interface.
 |---|---|
 | `crates/cosim-topology/src/` | YAML documents, validated types, memory layouts and adapters |
 | `crates/cosim-runtime/src/` | Plans, process supervision, resource ownership and cleanup |
-| `gem5/configs/example/gpufs/mi300_cosim.py` | MI300X objects and pool parameters |
-| `gem5/src/mem/physical.{cc,hh}` | Physical memory backing and bounds |
-| `gem5/src/dev/amdgpu/mi300x_vfio_user.{cc,hh}` | BAR/configuration/IRQ protocol handling |
-| `gem5/src/dev/amdgpu/amdgpu_vm.{cc,hh}` | Address translation |
-| `gem5/src/dev/amdgpu/pm4_packet_processor.{cc,hh}` | PM4 command processing |
-| `gem5/src/dev/amdgpu/sdma_engine.{cc,hh}` | SDMA execution |
-| `gem5/src/dev/amdgpu/interrupt_handler.cc` | IH records and interrupts |
-| `qemu/hw/remote/vfio-user-obj.c` | QEMU device-server interface |
+| `third_party/gem5/configs/example/gpufs/mi300_cosim.py` | MI300X objects and pool parameters |
+| `third_party/gem5/src/mem/physical.{cc,hh}` | Physical memory backing and bounds |
+| `third_party/gem5/src/dev/amdgpu/mi300x_vfio_user.{cc,hh}` | BAR/configuration/IRQ protocol handling |
+| `third_party/gem5/src/dev/amdgpu/amdgpu_vm.{cc,hh}` | Address translation |
+| `third_party/gem5/src/dev/amdgpu/pm4_packet_processor.{cc,hh}` | PM4 command processing |
+| `third_party/gem5/src/dev/amdgpu/sdma_engine.{cc,hh}` | SDMA execution |
+| `third_party/gem5/src/dev/amdgpu/interrupt_handler.cc` | IH records and interrupts |
+| `third_party/qemu/hw/remote/vfio-user-obj.c` | QEMU device-server interface |

@@ -22,6 +22,6 @@ fi
 sudo apt-get clean
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
-    build-essential scons pkg-config qemu-system-x86 qemu-utils \
-    curl unzip perl libdigest-sha-perl gh
+    binutils build-essential python3-venv scons pkg-config \
+    qemu-system-x86 qemu-utils xorriso curl unzip perl libdigest-sha-perl gh
 df -h "$GITHUB_WORKSPACE"

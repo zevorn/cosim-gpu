@@ -61,9 +61,9 @@ both PASS and end-to-end improvement.
 
 ## Script Discipline
 
-- Prefer existing repository scripts: `scripts/cosim_build.sh`,
-  `scripts/run_cosim_tests.sh`, `scripts/cosim_launch.sh`, and
-  `scripts/cosim_cleanup.sh`.
+- Use `just build-gem5`, `just test-gpu`, `just run-launch`, and
+  `just run-preflight` for simulator builds, guest tests, manual launches, and
+  read-only resource checks.
 - Prefer fixed manifest rows over ad hoc loops.
 - Add parameters only when the evidence needs them and record each value in the
   artifact.

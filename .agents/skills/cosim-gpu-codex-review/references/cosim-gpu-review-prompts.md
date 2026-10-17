@@ -47,4 +47,4 @@ Review this change:
 | Source elimination | "Remove `lastVMID()` calls from pm4_packet_processor.cc, replace with captured/queue-owned VMID" |
 | Adversarial review | "Review interrupt_handler.cc CP_EOP changes: VMID routing, cookie init, concurrent VMID handling" |
 | Race review | "Review finding F7: `lastVMID()` race between doorbell map and MQD DMA callback. Is the captured_vmid fix complete?" |
-| Code investigation | "Search gem5/src/dev/amdgpu/ for VFIO_USER_REGION_READ handling. Map all code paths." |
+| Code investigation | "Search third_party/gem5/src/dev/amdgpu/ for VFIO_USER_REGION_READ handling. Map all code paths." |

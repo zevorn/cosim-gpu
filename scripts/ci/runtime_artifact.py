@@ -31,7 +31,7 @@ def sha256(path: Path) -> str:
 
 def source_identity() -> dict[str, str]:
     identity = {}
-    for name, path in (("project", ROOT), ("gem5", ROOT / "gem5")):
+    for name, path in (("project", ROOT), ("gem5", ROOT / "third_party/gem5")):
         identity[name] = subprocess.check_output(
             ["git", "-C", str(path), "rev-parse", "HEAD"], text=True
         ).strip()
@@ -40,7 +40,8 @@ def source_identity() -> dict[str, str]:
             check=True,
         )
     expected = subprocess.check_output(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD:gem5"], text=True
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD:third_party/gem5"],
+        text=True,
     ).strip()
     if identity["gem5"] != expected:
         raise ValueError("gem5 checkout differs from the project's gitlink")

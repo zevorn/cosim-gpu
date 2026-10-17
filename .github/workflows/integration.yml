@@ -16,6 +16,10 @@ on:
         description: Exact image inputs requested by the current producer
         required: true
         type: string
+      image-epoch:
+        description: Image build epoch used by the current producer
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -29,6 +33,7 @@ jobs:
     env:
       COSIM_ENV: container
       COSIM_DEV_IMAGE: cosim-dev:ci
+      COSIM_ROCM_IMAGE_EPOCH: ${{ inputs.image-epoch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -47,8 +52,8 @@ jobs:
       - name: Initialize simulator sources
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --depth 1 gem5 qemu gem5-resources
-          git -C gem5 submodule update --init --recursive --depth 1
+          git submodule update --init --depth 1 third_party/gem5 third_party/qemu third_party/gem5-resources
+          git -C third_party/gem5 submodule update --init --recursive --depth 1
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -74,13 +79,13 @@ jobs:
       - name: Install QEMU image tools for artifact validation
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-utils
+          sudo apt-get install -y binutils qemu-utils
           qemu-img --version
 
       - name: Verify and adopt the paired disk, kernel and package manifest
         env:
           IMAGE_KEY: ${{ inputs.image-key }}
-        run: just ci-adopt-rocm-artifact build/rocm-artifact-download build/rocm-assets "$IMAGE_KEY"
+        run: just ci-adopt-rocm-artifact build/rocm-artifact-download build/images/guest/ubuntu/24.04/x86_64/rocm7_0 "$IMAGE_KEY"
 
       - name: Build QEMU and Rust launcher
         run: |
@@ -91,7 +96,7 @@ jobs:
         run: just test-cosim-vfio-user
 
       - name: Run ROCm workloads through the Rust launcher
-        run: just test-rocm-regression artifacts/rocm-regression/guest build/rocm-assets
+        run: just test-rocm-regression artifacts/rocm-regression/guest build/images/guest/ubuntu/24.04/x86_64/rocm7_0
 
       - name: Upload complete regression evidence
         if: always()
@@ -100,7 +105,7 @@ jobs:
           name: rocm-regression-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/rocm-regression/
-            build/rocm-assets/manifest.json
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/manifest.json
             build/ci-build/manifest.json
             !artifacts/rocm-regression/**/*.sock
           if-no-files-found: warn

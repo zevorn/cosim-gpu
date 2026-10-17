@@ -40,23 +40,51 @@ class LauncherLifecycleTests(unittest.TestCase):
                         qemu=ROOT / "build/qemu/qemu-system-x86_64",
                         boot_timeout=300, test_timeout=300, **options,
                     )
+                    generated = topology(inputs, directory)
+                    generated_machine = generated["machines"][0]
+                    self.assertEqual(
+                        generated_machine["host"]["memory"], inputs.memory
+                    )
+                    self.assertEqual(
+                        generated_machine["host"]["cpus"], inputs.cpus
+                    )
+                    device = generated_machine["devices"][0]
+                    region = device["memory_regions"][0]
+                    self.assertEqual(region["size"], inputs.vram)
                     config = directory / "topology.yaml"
-                    config.write_text(yaml.safe_dump(
-                        topology(inputs, directory)
-                    ))
+                    config.write_text(yaml.safe_dump({
+                        "version": 1,
+                        "imports": [
+                            str(ROOT / "samples/hosts/qemu.yaml"),
+                            str(ROOT / "samples/hosts/host-x86-tcg.yaml"),
+                        ],
+                        "machines": [{
+                            "id": "m0",
+                            "host": {
+                                "use": "host-x86-tcg",
+                                "runtime": {"binary": str(inputs.qemu)},
+                                "memory": inputs.memory,
+                                "cpus": inputs.cpus,
+                            },
+                        }],
+                    }))
                     payload_path = directory / "payload.yaml"
-                    payload_path.write_text(yaml.safe_dump(
-                        payload(inputs, "qcow2")
-                    ))
+                    payload_path.write_text(yaml.safe_dump(payload()))
                     plan = json.loads(subprocess.check_output([
-                        str(launcher), "plan", str(config),
+                        str(launcher), "run", str(config),
                         "--payload", str(payload_path),
+                        "--dry-run",
                         "--run-dir", str(directory / "run"),
                     ]))
                     self.assertLessEqual(
-                        plan["machines"][0]["memory"]["size"], budget
+                        plan["launch"]["machines"][0]["memory"]["size"],
+                        budget,
                     )
-                    host = next(p for p in plan["processes"]
+                    self.assertEqual(
+                        plan["image"]["profile"]["id"],
+                        "guest/ubuntu/24.04/x86_64/rocm7_0",
+                    )
+                    host = next(p for p in plan["launch"]["processes"]
                                 if p["role"] == "host")
                     argv = host["argv"]
                     self.assertEqual(

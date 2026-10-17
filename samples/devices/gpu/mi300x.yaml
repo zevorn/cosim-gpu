@@ -3,7 +3,7 @@ version: 1
 templates:
   mi300x:
     kind: gem5-mi300x
-    config: gem5/configs/example/gpufs/mi300_cosim.py
+    config: third_party/gem5/configs/example/gpufs/mi300_cosim.py
     runtime:
       binary: build/gem5/x86_64/VEGA_X86/gem5.opt
     memory_regions:
@@ -12,7 +12,7 @@ templates:
       vendor_id: 0x1002
       device_id: 0x74a0
       msix_vectors: 256
-      rom: gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom
+      rom: third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom
     args:
       num_compute_units: 40
       gem5_debug_flags: []

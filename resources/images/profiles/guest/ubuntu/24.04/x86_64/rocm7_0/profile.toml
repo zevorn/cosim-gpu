@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+
+schema = 1
+id = "guest/ubuntu/24.04/x86_64/rocm7_0"
+role = "guest"
+distribution = "ubuntu"
+release = "24.04"
+architecture = "x86_64"
+reuse_optional_inputs = ["m5"]
+
+[base]
+url = "https://cloud-images.ubuntu.com/releases/noble/release-20260826/ubuntu-24.04-server-cloudimg-amd64.img"
+sha256 = "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30"
+format = "qcow2"
+
+[builder]
+image_name = "cosim-rocm7-0"
+disk_size = "56000M"
+disk_format = "qcow2"
+cpus = 4
+memory_mb = 8192
+ssh_username = "ubuntu"
+accelerator = "kvm"
+machine_type = "q35"
+cpu_model = "host"
+
+[provisioning]
+tasks = "tasks.yml"
+
+[provisioning.variables]
+kernel_release = "6.8.0-124-generic"
+rocm_release = "7.0"
+rocm_distribution = "noble"
+pytorch_index_url = "https://download.pytorch.org/whl/rocm6.0"
+
+[[provisioning.outputs]]
+name = "kernel"
+guest_path = "/home/gem5/vmlinux-gpu-ml"
+
+[[provisioning.outputs]]
+name = "image-packages.tsv"
+guest_path = "/home/gem5/image-packages.tsv"
+
+[[provisioning.outputs]]
+name = "kernel-release"
+guest_path = "/home/gem5/kernel-release"
+
+[[provisioning.outputs]]
+name = "python-packages.json"
+guest_path = "/home/gem5/python-packages.json"
+
+[[provisioning.outputs]]
+name = "amdgpu-module.txt"
+guest_path = "/home/gem5/amdgpu-module.txt"
+
+[[provisioning.outputs]]
+name = "hipcc-version.txt"
+guest_path = "/home/gem5/hipcc-version.txt"
+
+[[provisioning.outputs]]
+name = "os-release"
+guest_path = "/etc/os-release"
+
+[payload]
+disk_id = "root"
+disk_format = "qcow2"
+disk_bus = "virtio"
+kernel_artifact = "kernel"
+kernel_cmdline = "console=ttyS0 root=/dev/vda1 rw nokaslr modprobe.blacklist=amdgpu"
+
+[inputs]
+m5 = "build/m5/x86/out/m5"
+run_gem5_app = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/run_gem5_app.sh"
+load_amdgpu = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/load_amdgpu.sh"
+serial_getty = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/serial-getty@.service"
+gem5_wmi_source = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/gem5_wmi/gem5_wmi.c"
+gem5_wmi_makefile = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/gem5_wmi/Makefile"
+setup_service = "resources/images/profiles/guest/ubuntu/24.04/x86_64/rocm7_0/files/cosim-gpu-setup.service"
+mi200_rom = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi200.rom"
+mi300_rom = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom"
+mi300_discovery = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300_discovery"
+mi350_discovery = "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi350_discovery"
+guest_setup = "scripts/cosim_guest_setup.sh"

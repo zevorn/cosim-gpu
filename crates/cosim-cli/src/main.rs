@@ -39,8 +39,6 @@ enum Command {
         #[arg(long)]
         assets: bool,
     },
-    /// Print the resolved commands, environments, paths and memory layouts as JSON.
-    Plan(Target),
     /// Print machines and device connections as a Mermaid flowchart.
     Graph { topology: PathBuf },
     /// Print the JSON Schema of topology documents.
@@ -53,6 +51,9 @@ enum Command {
     Run {
         #[command(flatten)]
         target: Target,
+        /// Validate and display the selected image and launch plan without building or launching.
+        #[arg(long)]
+        dry_run: bool,
         /// Seconds each process has to become ready.
         #[arg(long, default_value_t = 120)]
         ready_timeout: u64,
@@ -91,7 +92,7 @@ struct Target {
 
 /// How the default run directory is named.
 enum Purpose {
-    Preview,
+    DryRun,
     Run,
 }
 
@@ -121,10 +122,14 @@ async fn execute(cli: Cli) -> Result<ExitCode> {
             assets,
         } => {
             let topology = cosim_topology::load(&topology, &cli.samples)?;
-            let payload = payload
+            let mut payload = payload
                 .as_deref()
                 .map(cosim_topology::load_payload)
                 .transpose()?;
+            if let Some(payload) = &mut payload {
+                let workspace = image_workspace()?;
+                cosim_runtime::prepare_image_profile(payload, &workspace, false)?;
+            }
             cosim_topology::validate_payload(&topology, payload.as_ref())?;
             SessionLayout::check_identifiers(&topology)?;
             let page_size = cosim_runtime::page_size()?;
@@ -142,18 +147,6 @@ async fn execute(cli: Cli) -> Result<ExitCode> {
                 topology.device_count()
             );
         }
-        Command::Plan(target) => {
-            let topology = cosim_topology::load(&target.topology, &cli.samples)?;
-            let payload = target
-                .payload
-                .as_deref()
-                .map(cosim_topology::load_payload)
-                .transpose()?;
-            let layout = target.layout(Purpose::Preview)?;
-            let plan =
-                cosim_runtime::plan(&topology, payload.as_ref(), &ExecEnv::local()?, &layout)?;
-            println!("{}", serde_json::to_string_pretty(&plan)?);
-        }
         Command::Graph { topology } => {
             let topology = cosim_topology::load(&topology, &cli.samples)?;
             print!("{}", cosim_topology::graph(&topology));
@@ -168,27 +161,54 @@ async fn execute(cli: Cli) -> Result<ExitCode> {
         }
         Command::Run {
             target,
+            dry_run,
             ready_timeout,
             run_for,
             qemu_img,
             stdin_lifeline,
         } => {
+            let topology = cosim_topology::load(&target.topology, &cli.samples)?;
+            let mut payload = target
+                .payload
+                .as_deref()
+                .map(cosim_topology::load_payload)
+                .transpose()?;
+            let original_payload = payload.clone();
+            let image = if let Some(payload) = &mut payload {
+                let workspace = image_workspace()?;
+                cosim_runtime::prepare_image_profile(payload, &workspace, !dry_run)?
+            } else {
+                None
+            };
+            cosim_topology::validate_payload(&topology, payload.as_ref())?;
+            let assets_payload =
+                if dry_run && image.as_ref().is_some_and(|image| image.status != "ready") {
+                    original_payload.as_ref()
+                } else {
+                    payload.as_ref()
+                };
+            cosim_runtime::check_assets(&topology, assets_payload)?;
+            let layout = target.layout(if dry_run {
+                Purpose::DryRun
+            } else {
+                Purpose::Run
+            })?;
+            let plan =
+                cosim_runtime::plan(&topology, payload.as_ref(), &ExecEnv::local()?, &layout)?;
+            if dry_run {
+                let output = serde_json::json!({
+                    "dry_run": true,
+                    "image": image.as_ref(),
+                    "launch": plan,
+                });
+                println!("{}", serde_json::to_string_pretty(&output)?);
+                return Ok(ExitCode::SUCCESS);
+            }
             let options = RunOptions::new(
                 Duration::from_secs(ready_timeout),
                 run_for.map(Duration::from_secs),
                 qemu_img,
             )?;
-            let topology = cosim_topology::load(&target.topology, &cli.samples)?;
-            let payload = target
-                .payload
-                .as_deref()
-                .map(cosim_topology::load_payload)
-                .transpose()?;
-            cosim_topology::validate_payload(&topology, payload.as_ref())?;
-            cosim_runtime::check_assets(&topology, payload.as_ref())?;
-            let layout = target.layout(Purpose::Run)?;
-            let plan =
-                cosim_runtime::plan(&topology, payload.as_ref(), &ExecEnv::local()?, &layout)?;
             return run(&plan, &options, stdin_lifeline).await;
         }
         Command::Clean { run_dir } => cosim_runtime::clean(&run_dir)?,
@@ -196,11 +216,21 @@ async fn execute(cli: Cli) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+fn image_workspace() -> Result<PathBuf> {
+    match std::env::var_os("COSIM_WORKSPACE") {
+        Some(workspace) if !workspace.is_empty() => {
+            std::fs::canonicalize(PathBuf::from(workspace)).context("resolve COSIM_WORKSPACE")
+        }
+        Some(_) => anyhow::bail!("COSIM_WORKSPACE must not be empty"),
+        None => std::env::current_dir().context("read the current workspace directory"),
+    }
+}
+
 impl Target {
     fn layout(&self, purpose: Purpose) -> Result<SessionLayout> {
         let run_dir = self.run_dir.clone().unwrap_or_else(|| {
             let name = match purpose {
-                Purpose::Preview => "plan".to_owned(),
+                Purpose::DryRun => "dry-run".to_owned(),
                 Purpose::Run => {
                     let mut name = uuid::Uuid::new_v4().simple().to_string();
                     name.truncate(12);

@@ -34,12 +34,19 @@ pub(crate) struct Document {
 #[serde(deny_unknown_fields)]
 pub(crate) struct PayloadDocument {
     pub(crate) version: u32,
+    pub(crate) image: Option<PayloadImage>,
     #[serde(default)]
     pub(crate) boot: Boot,
     #[serde(default)]
     pub(crate) disks: Vec<Disk>,
     #[serde(default)]
     pub(crate) snapshot: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PayloadImage {
+    pub(crate) profile: String,
 }
 
 /// A reusable machine, host or device fragment.

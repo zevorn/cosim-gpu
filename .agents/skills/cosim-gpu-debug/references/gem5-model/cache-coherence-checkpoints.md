@@ -11,9 +11,9 @@ Question:
 - Does the path cover the VMID or address range used by the failing sample?
 
 Checkpoints:
-- `gem5/src/arch/amdgpu/vega/tlb.cc`: `GpuTLB::invalidateAll()` should reach PWC invalidation when the current branch requires full translation maintenance.
-- `gem5/src/arch/amdgpu/vega/pagetable_walker.cc`: `Walker::invalidatePWC()` is the page-walk-cache invalidation entry.
-- `gem5/src/dev/amdgpu/amdgpu_vm.cc`: GPU VM invalidation routes driver-visible invalidation events to registered GPU TLBs.
+- `third_party/gem5/src/arch/amdgpu/vega/tlb.cc`: `GpuTLB::invalidateAll()` should reach PWC invalidation when the current branch requires full translation maintenance.
+- `third_party/gem5/src/arch/amdgpu/vega/pagetable_walker.cc`: `Walker::invalidatePWC()` is the page-walk-cache invalidation entry.
+- `third_party/gem5/src/dev/amdgpu/amdgpu_vm.cc`: GPU VM invalidation routes driver-visible invalidation events to registered GPU TLBs.
 
 Evidence to record:
 - TLB invalidation count.
@@ -28,8 +28,8 @@ Question:
 - Are system-memory kernarg ranges distinguished from device-memory ranges?
 
 Checkpoints:
-- `gem5/src/gpu-compute/gpu_command_processor.cc`: dispatch setup reads kernel metadata, translates kernarg ranges, and records them on the task.
-- `gem5/src/gpu-compute/hsa_queue_entry.hh`: task state stores kernarg address, size, and translated physical ranges.
+- `third_party/gem5/src/gpu-compute/gpu_command_processor.cc`: dispatch setup reads kernel metadata, translates kernarg ranges, and records them on the task.
+- `third_party/gem5/src/gpu-compute/hsa_queue_entry.hh`: task state stores kernarg address, size, and translated physical ranges.
 
 Evidence to record:
 - Kernarg virtual address and size.
@@ -44,9 +44,9 @@ Question:
 - Does GL2 invalidation complete before shader execution starts?
 
 Checkpoints:
-- `gem5/src/gpu-compute/shader.cc`: `Shader::prepareInvalidate()` performs dispatch-boundary invalidation work before kernel execution.
-- `gem5/src/gpu-compute/compute_unit.cc`: `ComputeUnit::doSQCInvalidate()` and `handleSQCReturn()` cover SQC invalidation and completion.
-- `gem5/src/mem/ruby/system/VIPERCoalescer.cc`: TCC/GL2 invalidation callbacks show whether Ruby-side cache maintenance completed.
+- `third_party/gem5/src/gpu-compute/shader.cc`: `Shader::prepareInvalidate()` performs dispatch-boundary invalidation work before kernel execution.
+- `third_party/gem5/src/gpu-compute/compute_unit.cc`: `ComputeUnit::doSQCInvalidate()` and `handleSQCReturn()` cover SQC invalidation and completion.
+- `third_party/gem5/src/mem/ruby/system/VIPERCoalescer.cc`: TCC/GL2 invalidation callbacks show whether Ruby-side cache maintenance completed.
 
 Evidence to record:
 - SQC invalidation count and completion marker.

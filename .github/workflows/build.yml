@@ -35,7 +35,7 @@ jobs:
       - name: Init gem5 submodule
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --recursive --depth 1 gem5
+          git submodule update --init --recursive --depth 1 third_party/gem5
 
       - uses: extractions/setup-just@v4
         with:
@@ -98,12 +98,12 @@ jobs:
     env:
       COSIM_ENV: host
       COSIM_ROCM_IMAGE_EPOCH: ${{ vars.COSIM_ROCM_IMAGE_EPOCH || '1' }}
-      PKR_VAR_image_name: cosim-rocm-ci
       COSIM_ARTIFACT_HEAD_REPO: ${{ github.event.pull_request.head.repo.id || github.repository_id }}
       COSIM_ARTIFACT_BRANCH: ${{ github.head_ref || github.ref_name }}
     outputs:
       guest-artifact: ${{ steps.guest.outputs.artifact-id }}
       image-key: ${{ steps.image-key.outputs.key }}
+      image-epoch: ${{ steps.image-key.outputs.epoch }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -116,14 +116,16 @@ jobs:
       - name: Initialize image and m5 sources
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --depth 1 gem5 gem5-resources
+          git submodule update --init --depth 1 third_party/gem5 third_party/gem5-resources
       - name: Build the guest m5 utility
         run: just build-m5
       - name: Validate the real Packer builder and provisioners
         run: just check-rocm-image
       - name: Identify exact image inputs
         id: image-key
-        run: echo "key=$(just ci-rocm-assets key)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "key=$(just ci-rocm-assets key guest/ubuntu/24.04/x86_64/rocm7_0)" >> "$GITHUB_OUTPUT"
+          echo "epoch=$COSIM_ROCM_IMAGE_EPOCH" >> "$GITHUB_OUTPUT"
       - name: Find a verified image from the same source branch
         id: retained
         env:
@@ -149,7 +151,7 @@ jobs:
         env:
           IMAGE_KEY: ${{ steps.image-key.outputs.key }}
           DOWNLOAD_DIR: ${{ steps.retained.outputs.download-dir }}
-        run: just ci-adopt-rocm-artifact "$DOWNLOAD_DIR" build/rocm-assets "$IMAGE_KEY"
+        run: just ci-adopt-rocm-artifact "$DOWNLOAD_DIR" build/images/guest/ubuntu/24.04/x86_64/rocm7_0 "$IMAGE_KEY"
       - name: Build or verify the paired ROCm disk and kernel
         run: just build-rocm-assets
       - name: Verify reuse and corruption rejection with the built image
@@ -158,7 +160,7 @@ jobs:
         id: guest
         with:
           name: rocm-guest-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/rocm-assets/
+          path: build/images/guest/ubuntu/24.04/x86_64/rocm7_0/
           if-no-files-found: error
           compression-level: 0
           retention-days: 2
@@ -169,24 +171,15 @@ jobs:
           name: rocm-image-logs-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/rocm-selection.json
-            build/rocm-image-build-*/build.log
-            build/rocm-image-build-*/packer.log
-            build/rocm-image-build-*/products/manifest.json
-            build/rocm-image-build-*/products/image-packages.tsv
-            build/rocm-image-build-*/products/kernel-release
-            build/rocm-image-build-*/products/python-packages.json
-            build/rocm-image-build-*/products/amdgpu-module.txt
-            build/rocm-image-build-*/products/hipcc-version.txt
-            build/rocm-image-build-*/products/os-release
-            artifacts/rocm-image-validate/*.log
-            build/rocm-assets/*.log
-            build/rocm-assets/manifest.json
-            build/rocm-assets/image-packages.tsv
-            build/rocm-assets/kernel-release
-            build/rocm-assets/python-packages.json
-            build/rocm-assets/amdgpu-module.txt
-            build/rocm-assets/hipcc-version.txt
-            build/rocm-assets/os-release
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/build-rocm7_0-*/logs/*.log
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/*.log
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/manifest.json
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/image-packages.tsv
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel-release
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/python-packages.json
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/amdgpu-module.txt
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/hipcc-version.txt
+            build/images/guest/ubuntu/24.04/x86_64/rocm7_0/os-release
           if-no-files-found: warn
           retention-days: 14
       - name: Verify published image selection and source isolation
@@ -211,6 +204,7 @@ jobs:
       runtime-artifact: ${{ needs.build-gem5.outputs.runtime-artifact }}
       guest-artifact: ${{ needs.build-rocm.outputs.guest-artifact }}
       image-key: ${{ needs.build-rocm.outputs.image-key }}
+      image-epoch: ${{ needs.build-rocm.outputs.image-epoch }}
 
   regression:
     name: ROCm regression gate

@@ -11,6 +11,7 @@
 mod assets;
 mod disk;
 mod env;
+mod images;
 mod layout;
 mod manifest;
 mod node;
@@ -22,6 +23,7 @@ mod session;
 
 pub use assets::check_assets;
 pub use env::{ExecEnv, page_size};
+pub use images::{ImageState, inspect_profile, prepare_image_profile};
 pub use layout::SessionLayout;
 pub use manifest::clean;
 pub use plan::{DiskPlan, MachinePlan, NodeRole, Plan, ProcessPlan, plan};

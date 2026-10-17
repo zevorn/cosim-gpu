@@ -1,12 +1,12 @@
 [submodule "gem5"]
-	path = gem5
+	path = third_party/gem5
 	url = git@github.com:gevico/gem5.git
 	branch = gevico/cosim-gpu
 [submodule "gem5-resources"]
-	path = gem5-resources
+	path = third_party/gem5-resources
 	url = git@github.com:gevico/gem5-resources.git
 	branch = gevico/cosim-gpu
 [submodule "qemu"]
-	path = qemu
+	path = third_party/qemu
 	url = git@github.com:gevico/qemu.git
 	branch = gevico/cosim-gpu

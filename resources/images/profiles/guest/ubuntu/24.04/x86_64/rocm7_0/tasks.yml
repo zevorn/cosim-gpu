@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: Apache-2.0
+- name: Validate the base distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_distribution_version == "24.04"
+    fail_msg: "This profile requires Ubuntu 24.04."
+
+- name: Create the cosim build user
+  ansible.builtin.user:
+    name: gem5
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+
+- name: Create the Packer build temporary directory
+  ansible.builtin.file:
+    path: /home/gem5/build-tmp
+    state: directory
+    owner: gem5
+    group: gem5
+    mode: "0755"
+
+- name: Install the selected guest kernel and build dependencies
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 1800
+    state: present
+    name:
+      - "linux-image-{{ cosim_profile_variables.kernel_release }}"
+      - "linux-headers-{{ cosim_profile_variables.kernel_release }}"
+      - "linux-modules-extra-{{ cosim_profile_variables.kernel_release }}"
+      - build-essential
+      - cmake
+      - gpg
+      - git
+      - scons
+      - vim
+      - python3-pip
+      - pciutils
+
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the AMD package signing key
+  ansible.builtin.get_url:
+    url: https://repo.radeon.com/rocm/rocm.gpg.key
+    dest: /etc/apt/keyrings/rocm.gpg.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convert the AMD package signing key
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --dearmor
+      - --batch
+      - --yes
+      - --output
+      - /etc/apt/keyrings/rocm.gpg
+      - /etc/apt/keyrings/rocm.gpg.asc
+  changed_when: false
+
+- name: Configure the AMDGPU package repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg]
+      https://repo.radeon.com/amdgpu/{{ cosim_profile_variables.rocm_release }}/ubuntu
+      {{ cosim_profile_variables.rocm_distribution }} main
+    filename: amdgpu
+    state: present
+
+- name: Configure the ROCm package repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg]
+      https://repo.radeon.com/rocm/apt/{{ cosim_profile_variables.rocm_release }}
+      {{ cosim_profile_variables.rocm_distribution }} main
+    filename: rocm
+    state: present
+
+- name: Set AMD package priority
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/rocm-pin-600
+    owner: root
+    group: root
+    mode: "0644"
+    content: |-
+      Package: *
+      Pin: release o=repo.radeon.com
+      Pin-Priority: 600
+
+- name: Install the AMDGPU and ROCm stack
+  ansible.builtin.apt:
+    update_cache: true
+    state: present
+    name:
+      - amdgpu-dkms
+      - rocm
+
+- name: Install image inputs
+  ansible.builtin.copy:
+    src: "{{ item.source }}"
+    dest: "{{ item.destination }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {source: "{{ cosim_inputs.m5 }}", destination: /sbin/m5, mode: "0755"}
+    - {source: "{{ cosim_inputs.run_gem5_app }}", destination: /home/gem5/run_gem5_app.sh, mode: "0755"}
+    - {source: "{{ cosim_inputs.load_amdgpu }}", destination: /home/gem5/load_amdgpu.sh, mode: "0755"}
+    - {source: "{{ cosim_inputs.serial_getty }}", destination: /lib/systemd/system/serial-getty@.service, mode: "0644"}
+    - {source: "{{ cosim_inputs.gem5_wmi_source }}", destination: /home/gem5/gem5_wmi.c, mode: "0644"}
+    - {source: "{{ cosim_inputs.gem5_wmi_makefile }}", destination: /home/gem5/Makefile, mode: "0644"}
+    - {source: "{{ cosim_inputs.setup_service }}", destination: /lib/systemd/system/cosim-gpu-setup.service, mode: "0644"}
+    - {source: "{{ cosim_inputs.guest_setup }}", destination: /usr/local/bin/cosim-gpu-setup.sh, mode: "0755"}
+
+- name: Create firmware directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /root/roms
+    - /usr/lib/firmware/amdgpu
+
+- name: Install MI200 and MI300 firmware inputs
+  ansible.builtin.copy:
+    src: "{{ item.source }}"
+    dest: "{{ item.destination }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {source: "{{ cosim_inputs.mi200_rom }}", destination: /root/roms/mi200.rom}
+    - {source: "{{ cosim_inputs.mi300_rom }}", destination: /root/roms/mi300.rom}
+    - {source: "{{ cosim_inputs.mi300_discovery }}", destination: /usr/lib/firmware/amdgpu/mi300_discovery}
+    - {source: "{{ cosim_inputs.mi350_discovery }}", destination: /usr/lib/firmware/amdgpu/mi350_discovery}
+
+- name: Create the initial AMD IP discovery file
+  ansible.builtin.file:
+    path: /usr/lib/firmware/amdgpu/ip_discovery.bin
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract the selected guest kernel
+  ansible.builtin.shell:
+    cmd: >-
+      /usr/src/linux-headers-{{ cosim_profile_variables.kernel_release }}/scripts/extract-vmlinux
+      /boot/vmlinuz-{{ cosim_profile_variables.kernel_release }}
+      > /home/gem5/vmlinux-gpu-ml
+    creates: /home/gem5/vmlinux-gpu-ml
+
+- name: Record the selected guest kernel release
+  ansible.builtin.copy:
+    dest: /home/gem5/kernel-release
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ cosim_profile_variables.kernel_release }}\n"
+
+- name: Inspect the installed AMDGPU module
+  ansible.builtin.command:
+    argv:
+      - modinfo
+      - -k
+      - "{{ cosim_profile_variables.kernel_release }}"
+      - amdgpu
+  register: amdgpu_module_info
+  changed_when: false
+
+- name: Verify the AMDGPU DKMS module matches the selected kernel
+  ansible.builtin.assert:
+    that:
+      - "'/updates/dkms/amdgpu.ko' in amdgpu_module_info.stdout"
+      - "cosim_profile_variables.kernel_release in amdgpu_module_info.stdout"
+    fail_msg: "The selected kernel does not have a matching AMDGPU DKMS module."
+
+- name: Save AMDGPU module metadata
+  ansible.builtin.copy:
+    dest: /home/gem5/amdgpu-module.txt
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ amdgpu_module_info.stdout }}\n"
+
+- name: Build the gem5 WMI kernel module
+  ansible.builtin.command:
+    argv:
+      - make
+      - -C
+      - "/lib/modules/{{ cosim_profile_variables.kernel_release }}/build"
+      - M=/home/gem5
+    creates: /home/gem5/gem5_wmi.ko
+
+- name: Install the WMI module
+  ansible.builtin.copy:
+    src: /home/gem5/gem5_wmi.ko
+    dest: /lib/modules/{{ cosim_profile_variables.kernel_release }}/extra/gem5_wmi.ko
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the cosim GPU setup service
+  ansible.builtin.systemd_service:
+    name: cosim-gpu-setup.service
+    enabled: true
+    daemon_reload: true
+
+- name: Install Python GPU packages
+  ansible.builtin.apt:
+    state: present
+    name:
+      - python3-pip
+
+- name: Install PyTorch for ROCm
+  ansible.builtin.command:
+    argv:
+      - pip3
+      - install
+      - --break-system-packages
+      - torch
+      - torchvision
+      - torchaudio
+      - --index-url
+      - "{{ cosim_profile_variables.pytorch_index_url }}"
+  changed_when: true
+
+- name: Record installed packages
+  ansible.builtin.shell:
+    cmd: "dpkg-query -W -f='${Package}\t${Version}\n' > /home/gem5/image-packages.tsv"
+  changed_when: false
+
+- name: Record installed Python packages
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - pip
+      - list
+      - --format=json
+  register: python_packages
+  changed_when: false
+
+- name: Save installed Python packages
+  ansible.builtin.copy:
+    dest: /home/gem5/python-packages.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ python_packages.stdout }}\n"
+
+- name: Record the ROCm compiler version
+  ansible.builtin.shell:
+    cmd: /opt/rocm/bin/hipcc --version > /home/gem5/hipcc-version.txt
+  changed_when: false
+
+- name: Clean package and pip caches
+  ansible.builtin.shell:
+    cmd: apt-get clean && rm -rf /root/.cache/pip && fstrim -av
+  changed_when: true
+
+- name: Add the cosim application helper to the login profile
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    line: /home/gem5/run_gem5_app.sh
+    create: true
+    owner: root
+    group: root
+    mode: "0644"

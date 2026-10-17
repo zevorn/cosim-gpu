@@ -1,12 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
 version: 1
-boot:
-  kernel: build/rocm-local-installed/kernel
-  cmdline: >-
-    console=ttyS0 root=/dev/vda1 rw nokaslr modprobe.blacklist=amdgpu
-disks:
-  - id: root
-    backing: build/rocm-local-installed/disk
-    format: raw
-    bus: virtio
-    boot: true
+image:
+  profile: guest/ubuntu/24.04/x86_64/rocm7_0

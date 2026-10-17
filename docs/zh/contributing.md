@@ -2,7 +2,8 @@
 
 # 贡献指南
 
-本文规定 cosim-gpu 顶层仓库的补丁要求。`gem5` 和 `gem5-resources` 子模块中的修改遵守对应仓库的规则。
+本文规定 cosim-gpu 顶层仓库的补丁要求。`third_party/gem5` 和
+`third_party/gem5-resources` 子模块中的修改遵守对应仓库的规则。
 
 justfile 使用 `dev-`、`build-`、`run-`、`test-`、`check-`、`ci-` 和 `maint-` 前缀区分命令用途。运行 `just` 可以查看可用命令。
 
@@ -81,18 +82,18 @@ gem5 任务只编译一次 `VEGA_X86`，上传压缩后的二进制文件、模�
 不同运行之间，输入标识匹配时可以一起恢复 gem5、静态库和原构建容器镜像。
 清单同时保留最初的编译来源和本轮产物发布标识。
 
-独立的镜像任务并行构建 x86 m5 工具，再执行指定版本 `gem5-resources` 的
-Packer/QEMU 配方，安装 Ubuntu 24.04、ROCm 7.0、amdgpu DKMS、PyTorch
-和 GPU 初始化服务，并提取配套的 Linux 6.8.0-124-generic 内核。压缩 QCOW2
-磁盘、内核、软件包清单和文件摘要组成一份可复用产物。任务在准备专用 runner 后
-检查实际可用磁盘空间。
+独立的镜像任务并行构建 x86 `m5` 工具，并使用仓库维护的 Packer/Ansible 配方：
+`resources/images/profiles/guest/ubuntu/24.04/x86_64/rocm7_0`。任务从校验值固定的
+Ubuntu cloud 磁盘镜像开始，安装 ROCm 7.0、AMDGPU DKMS、PyTorch 和 GPU 初始化服务，
+再导出配套的 Linux 6.8.0-124-generic 内核。QCOW2 磁盘、内核、软件包清单和文件摘要
+组成可复用产物。ROM、discovery 固件和 WMI 源码仍从 `third_party/gem5-resources`
+读取。
 
-镜像缓存标识包含源码版本、配方内容、m5 二进制文件、QEMU 版本、构建程序及磁盘
-格式。复用时检查输入标识和全部产物摘要。将 `COSIM_ROCM_IMAGE_EPOCH` 从默认
-值 `1` 改为新值，可以重新解析软件包依赖并构建镜像。完成的镜像记录实际安装的
-Debian 和 Python 软件包版本。回归任务使用固定 artifact ID 下载两份构建产物，
-检查镜像结构，并在独立的 Ubuntu 24.04 x86_64/KVM runner 中执行测试。
-本地入口与构建输入见 [ROCm 镜像构建](rocm-image.md)。
+镜像缓存标识包含基础镜像摘要、profile 与 Ansible 输入、外部文件摘要、`m5` 二进制、
+QEMU、Packer、Ansible 和磁盘格式。复用时校验输入标识和产物摘要。
+将 `COSIM_ROCM_IMAGE_EPOCH` 从默认值 `1` 改为新值可以请求重新构建。回归任务使用固定
+artifact ID 下载两份构建产物，检查镜像结构，并在独立的 Ubuntu 24.04 x86_64/KVM runner
+中执行测试。本地入口和构建输入见 [ROCm 镜像配方](rocm-image.md)。
 
 `just test-rocm-regression <output> <assets>` 使用 Rust launcher 和示例 host、device
 模板。`vector_add`、`gemm`、`reduction`、`transpose`、`prefix_scan` 和

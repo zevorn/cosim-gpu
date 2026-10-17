@@ -8,14 +8,26 @@ goal is to preserve the wait object and capture two comparable state samples.
 Do not run the normal test timeout wrapper for a known wait-state
 investigation. It can kill the process that contains the evidence.
 
-Use the runner only to create the live environment:
+Start a fresh test session with a long timeout so the live process remains
+available for sampling:
 
 ```bash
-scripts/run_cosim_tests.sh --hang-env --output-dir <case_dir> <program>
+COSIM_RUN_ID="wait-state-001" just test-gpu \
+  --test-timeout 3600 \
+  --session-name cosim-wait-state \
+  <program>
 ```
 
-Build the exact guest command from the target identity already proven by
-`cosim-gpu-test`:
+The runner launches the target in the guest. Derive the console pipe and log
+from the selected run id and session name, then use `cosim-gpu-guest` to inspect
+the running process and collect samples while it is blocked:
+
+```bash
+SESSION_NAME=cosim-wait-state
+RUN_ID=wait-state-001
+CONSOLE_PIPE="/tmp/${SESSION_NAME}-${RUN_ID}.session/console.in"
+CONSOLE_LOG="/tmp/${SESSION_NAME}-${RUN_ID}.log"
+```
 
 - local kernel: `cd /mnt/tests && ./build/<program>`
 - ROCm example: `cd /mnt/external/rocm-examples/<case-dir> && ./<built-binary>`

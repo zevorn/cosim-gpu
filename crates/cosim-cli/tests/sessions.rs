@@ -31,6 +31,18 @@ fn samples() -> PathBuf {
     workspace().join("samples")
 }
 
+fn directory_entries(path: &Path) -> Vec<PathBuf> {
+    if !path.exists() {
+        return Vec::new();
+    }
+    let mut entries = fs::read_dir(path)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
+    entries.sort();
+    entries
+}
+
 /// A test directory below the workspace build directory.
 fn directory() -> tempfile::TempDir {
     let root = workspace().join("build/tests/runtime");
@@ -76,7 +88,7 @@ fn topology(root: &Path, machines: &[(&str, &str, &str)], extra: &str) -> PathBu
 }
 
 #[test]
-fn validate_plan_and_run_reject_guest_hints_without_payload() {
+fn validate_dry_run_and_run_reject_guest_hints_without_payload() {
     let root = directory();
     let (profile, host) = host_profile();
     let topology = root.path().join("topology.yaml");
@@ -90,8 +102,17 @@ fn validate_plan_and_run_reject_guest_hints_without_payload() {
         ),
     )
     .unwrap();
-    for command in ["validate", "plan", "run"] {
-        let args = [OsString::from(command), topology.clone().into()];
+    let cases = [
+        vec![OsString::from("validate"), topology.clone().into()],
+        vec![OsString::from("run"), topology.clone().into()],
+        vec![
+            OsString::from("run"),
+            topology.clone().into(),
+            OsString::from("--dry-run"),
+        ],
+    ];
+    for args in cases {
+        let command = args[0].to_string_lossy();
         let (status, output) = Launcher::start(root.path(), &args, Stdio::null()).finish();
         assert!(!status.success(), "{command}: {output:#?}");
         assert!(
@@ -101,6 +122,49 @@ fn validate_plan_and_run_reject_guest_hints_without_payload() {
             "{command}: {output:#?}"
         );
     }
+}
+
+#[test]
+fn run_dry_run_displays_image_and_launch_plan_without_writing_outputs() {
+    let root = directory();
+    let topology = samples().join("machines/host-only.yaml");
+    let payload = samples().join("payloads/ubuntu-rocm7_0.yaml");
+    let image_dir = workspace().join("build/images/guest/ubuntu/24.04/x86_64/rocm7_0");
+    let image_existed = image_dir.exists();
+    let dry_run_dir = workspace().join(".cosim/dry-run");
+    let dry_run_dir_existed = dry_run_dir.exists();
+    let verification_cache = workspace().join("build/cache/image-verification");
+    let verification_cache_existed = verification_cache.exists();
+    let verification_cache_before = directory_entries(&verification_cache);
+    let args = [
+        OsString::from("run"),
+        topology.into(),
+        OsString::from("--payload"),
+        payload.into(),
+        OsString::from("--dry-run"),
+    ];
+    let (status, output) = Launcher::start(root.path(), &args, Stdio::null()).finish();
+    assert!(status.success(), "{output:#?}");
+    let stdout = output
+        .iter()
+        .filter(|line| !line.starts_with("stderr: "))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let plan: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(plan["dry_run"], true);
+    assert_eq!(
+        plan["image"]["profile"]["id"],
+        "guest/ubuntu/24.04/x86_64/rocm7_0"
+    );
+    assert!(plan["launch"]["processes"].is_array());
+    assert_eq!(image_dir.exists(), image_existed);
+    assert_eq!(dry_run_dir.exists(), dry_run_dir_existed);
+    assert_eq!(verification_cache.exists(), verification_cache_existed);
+    assert_eq!(
+        directory_entries(&verification_cache),
+        verification_cache_before
+    );
 }
 
 fn payload(root: &Path, fields: &str) -> PathBuf {
@@ -841,7 +905,7 @@ machines:
     assert!(!root.join("r").exists());
 
     fs::copy(
-        workspace().join("gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom"),
+        workspace().join("third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom"),
         &rom,
     )
     .unwrap();

@@ -55,9 +55,16 @@ flowchart LR
 just dev-submodules
 just dev-image        # 非 Linux 主机，或设置 COSIM_ENV=container
 
-# 构建工具链和客户机镜像流程，然后启动示例机器
+# 在带 KVM 的 x86_64 Linux 主机上构建工具链和客户机镜像
 just build-all
 just run-topology samples/machines/single-gpu.yaml --payload samples/payloads/ubuntu-rocm7_0.yaml
+~~~
+
+首次构建镜像时会使用 `resources/images/` 中选定的配方，并将验证后的磁盘与内核
+保存在 `build/images/`。可以先检查解析后的配方和启动命令，不构建镜像或启动进程：
+
+~~~bash
+just run-topology samples/machines/single-gpu.yaml --payload samples/payloads/ubuntu-rocm7_0.yaml --dry-run
 ~~~
 
 ### 拓扑示例
@@ -124,10 +131,13 @@ QEMU 设备示例使用 <code>just build-qemu</code> 构建的 QEMU，通过
 
 - **Rust 工作区：** <code>crates/cosim-topology/</code>、
   <code>crates/cosim-runtime/</code> 和 <code>crates/cosim-cli/</code>。
-- **模拟器模型：** <code>gem5/</code>、<code>qemu/</code>、
-  <code>gem5-resources/</code> 和 <code>configs/sst/</code>。
+- **模拟器模型：** <code>third_party/gem5/</code>、
+  <code>third_party/qemu/</code>、<code>third_party/gem5-resources/</code> 和
+  <code>configs/sst/</code>。
 - **项目工具：** <code>samples/</code>、<code>scripts/</code>、
   <code>justfile</code> 和 <code>.agents/</code>。
+- **Guest 镜像配方：** <code>resources/images/</code> 中按操作系统组织的 Packer/QEMU
+  和 Ansible 配置。
 
 ## 更多文档
 

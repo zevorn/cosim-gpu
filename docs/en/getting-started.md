@@ -107,33 +107,39 @@ be installed.
 
 ## Building the Disk Image
 
-The disk image contains Ubuntu 24.04 + ROCm 7.0 + kernel 6.8.0-79-generic with amdgpu DKMS modules.
+The selected image profile builds Ubuntu 24.04 with ROCm 7.0, an amdgpu DKMS
+module and its matching kernel.
 
 ### Automated Build
 
 ```bash
-just build-m5          # recommended: avoids git clone inside the guest VM
+just build-m5 x86      # recommended: avoids git clone inside the guest VM
 just build-disk
+just test-rocm-assets
 ```
 
-If `gem5-resources` is not initialized, `just build-disk` initializes its submodule before the build begins.
+The image recipe and Ansible tasks are stored in `resources/images/`. The
+builder uses firmware, WMI source and GPU support files from
+`third_party/gem5-resources/`.
 
 ### Custom Image Build
 
 ```bash
-just build-rocm-assets build/rocm-custom
+scripts/cosim-image list
+scripts/cosim-image validate guest/ubuntu/24.04/x86_64/rocm7_0
 ```
 
-Set `PKR_VAR_*` environment variables to override the Packer image parameters.
+Add another profile directory to select a different OS image or package set.
 
 ### Output
 
 | Artifact | Path | Size |
 |---|---|---|
-| Disk Image | `build/rocm-local-installed/disk` | ~55 GB |
-| Kernel | `build/rocm-local-installed/kernel` | ~64 MB |
+| Disk Image | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk` | 56 GB virtual capacity |
+| Kernel | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel` | Profile output |
 
-> **Tip (China network):** If the build hangs on package downloads, apply the China mirror patch to speed up `apt` inside the VM. See [Reference §7](reference.md#7-china-mirror-configuration) for instructions.
+Use `cosim run --dry-run` to check the payload, profile cache state and resolved
+launch commands without building the image or starting the simulators.
 
 ## Launching Co-simulation
 
@@ -161,7 +167,7 @@ Related recipes: `just run-preflight` lists leftover co-simulation resources, an
 
 ```bash
 docker run -d --name gem5-cosim \
-    -v /path/to/cosim-gpu/gem5:/gem5 \
+    -v /path/to/cosim-gpu/third_party/gem5:/gem5 \
     -v /path/to/cosim-gpu/build:/build \
     -v /tmp:/tmp \
     -v /dev/shm:/dev/shm \
@@ -213,17 +219,20 @@ docker exec gem5-cosim chmod 666 /dev/shm/mi300x-vram
 ```bash
 qemu-system-x86_64 \
     -machine q35 -enable-kvm -cpu host \
+    -snapshot \
     -m 8G -smp 4 \
     -object memory-backend-file,id=mem0,size=8G,mem-path=/dev/shm/cosim-guest-ram,share=on \
     -numa node,memdev=mem0 \
-    -kernel "$PWD/build/rocm-local-installed/kernel" \
+    -kernel "$PWD/build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel" \
     -append "console=ttyS0,115200 root=/dev/vda1 modprobe.blacklist=amdgpu" \
-    -drive "file=$PWD/build/rocm-local-installed/disk,format=raw,if=virtio" \
+    -drive "file=$PWD/build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk,format=qcow2,if=virtio" \
     -device 'vfio-user-pci,socket={"type":"unix","path":"/tmp/gem5-mi300x.sock"}' \
     -nographic -no-reboot
 ```
 
 > **Important:** The kernel command line must include `modprobe.blacklist=amdgpu` to prevent auto-loading the driver before the VGA ROM is written to shared memory. The `cosim-gpu-setup.service` handles the correct initialization order.
+
+QEMU writes guest changes to a temporary overlay and discards them when it exits, preserving the verified image bundle.
 
 #### SSH Access to Guest
 

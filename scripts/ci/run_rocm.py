@@ -62,7 +62,7 @@ def prepare(inputs: Inputs) -> dict:
         pass
     metadata = json.loads((inputs.assets / "manifest.json").read_text())
     for name in ("kernel", "disk"):
-        if sha256(inputs.assets / name) != metadata[name]["sha256"]:
+        if sha256(inputs.assets / name) != metadata["files"][name]["sha256"]:
             raise ValueError(f"guest asset checksum mismatch: {name}")
     for path in (inputs.launcher, inputs.gem5, inputs.qemu):
         if not path.is_file() or not os.access(path, os.X_OK):
@@ -70,13 +70,20 @@ def prepare(inputs: Inputs) -> dict:
     provenance = {"assets": metadata, "binaries": {}, "sources": {}}
     for path in (inputs.launcher, inputs.gem5, inputs.qemu):
         provenance["binaries"][str(path)] = sha256(path)
-    rom = ROOT / "gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom"
+    rom = (
+        ROOT
+        / "third_party/gem5-resources/src/x86-ubuntu-gpu-ml/files/mi300.rom"
+    )
     provenance["firmware"] = {str(rom): sha256(rom)}
     patch_dir = inputs.output / "patch"
     patch_dir.mkdir()
-    for name, directory in (("project", ROOT), ("gem5", ROOT / "gem5"),
-                            ("qemu", ROOT / "qemu"),
-                            ("gem5-resources", ROOT / "gem5-resources")):
+    repositories = (
+        ("project", ROOT),
+        ("gem5", ROOT / "third_party/gem5"),
+        ("qemu", ROOT / "third_party/qemu"),
+        ("gem5-resources", ROOT / "third_party/gem5-resources"),
+    )
+    for name, directory in repositories:
         revision = subprocess.check_output(
             ["git", "-C", str(directory), "rev-parse", "HEAD"], text=True
         ).strip()
@@ -132,21 +139,10 @@ def topology(inputs: Inputs, share: Path) -> dict:
     }
 
 
-def payload(inputs: Inputs, disk_format: str) -> dict:
+def payload() -> dict:
     return {
         "version": 1,
-        "boot": {
-            "kernel": str(inputs.assets / "kernel"),
-            "cmdline": "console=ttyS0 root=/dev/vda1 rw nokaslr "
-            "modprobe.blacklist=amdgpu",
-        },
-        "disks": [{
-            "id": "root",
-            "backing": str(inputs.assets / "disk"),
-            "format": disk_format,
-            "bus": "virtio",
-            "boot": True,
-        }],
+        "image": {"profile": "guest/ubuntu/24.04/x86_64/rocm7_0"},
     }
 
 
@@ -222,9 +218,7 @@ def exercise_guest(
             raise RuntimeError("guest environment was not confirmed")
 
 
-def run_case(
-    inputs: Inputs, program: str, disk_format: str, lifecycle: Lifecycle
-) -> Result:
+def run_case(inputs: Inputs, program: str, lifecycle: Lifecycle) -> Result:
     started = time.monotonic()
     row = inputs.output / program
     row.mkdir()
@@ -240,7 +234,7 @@ def run_case(
     config = row / "topology.yaml"
     config.write_text(yaml.safe_dump(topology(inputs, share)))
     payload_path = row / "payload.yaml"
-    payload_path.write_text(yaml.safe_dump(payload(inputs, disk_format)))
+    payload_path.write_text(yaml.safe_dump(payload()))
     command = [
         str(inputs.launcher), "run", str(config), "--payload",
         str(payload_path),
@@ -317,7 +311,7 @@ def execute(lifecycle: Lifecycle) -> int:
             raise ValueError("timeouts must be positive")
         if inputs.cpus <= 0:
             raise ValueError("cpus must be positive")
-        metadata = prepare(inputs)
+        prepare(inputs)
         lifecycle.check()
         with (inputs.output / "matrix.tsv").open("w", newline="") as stream:
             writer = csv.DictWriter(
@@ -326,9 +320,7 @@ def execute(lifecycle: Lifecycle) -> int:
             writer.writeheader()
             for program in PROGRAMS:
                 lifecycle.check()
-                result = run_case(
-                    inputs, program, metadata["disk"]["format"], lifecycle
-                )
+                result = run_case(inputs, program, lifecycle)
                 results.append(result)
                 writer.writerow(asdict(result))
                 stream.flush()

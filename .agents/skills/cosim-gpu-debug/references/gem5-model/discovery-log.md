@@ -12,7 +12,7 @@ sessions. `invalidateAll` cleared the TLB but not the page walk cache, so stale 
 **Evidence**: Two-snapshot state comparison showed TLB empty after `invalidateAll` but PWC still held entries
 matching the old page table. Next page walk returned stale PWC data without re-traversing.
 
-**Fix**: `gem5/src/arch/amdgpu/vega/tlb.cc` — conservative full PWC invalidation on every full TLB flush.
+**Fix**: `third_party/gem5/src/arch/amdgpu/vega/tlb.cc` — conservative full PWC invalidation on every full TLB flush.
 Commit: `arch-amdgpu: invalidate PWC on full TLB flush`.
 
 **Verification**: 200× vector_add with PWC invalidation: 0 TIMEOUT_WAIT (was ~3% failure rate before fix).
@@ -91,7 +91,7 @@ rather than the correct MAP_PROCESS context.
 **Evidence**: hipFree signal address traced through gem5 showed correct write, but interrupt cookie had vmid=0
 instead of vmid=3. Driver received interrupt but could not match it to the waiting user process.
 
-**Fix**: `gem5/src/dev/amdgpu/interrupt_handler.cc` — track VMID from MAP_PROCESS rather than lastVMID.
+**Fix**: `third_party/gem5/src/dev/amdgpu/interrupt_handler.cc` — track VMID from MAP_PROCESS rather than lastVMID.
 PR: `zevorn/gem5#4`.
 
 **Debug reference**: `cosim-gpu-debug` signal, interrupt, translation, and VMID

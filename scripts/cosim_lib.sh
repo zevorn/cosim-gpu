@@ -88,6 +88,19 @@ cosim_artifact_dir() {
     echo "${cosim_dir}/artifacts/${operator}/${run_id}"
 }
 
+cosim_create_disk_overlay() {
+    local qemu_img="$1"
+    local backing_image="$2"
+    local overlay_image="$3"
+    local backing_format
+    backing_format="$(
+        "$qemu_img" info --output=json "$backing_image" |
+            python3 -c 'import json, sys; print(json.load(sys.stdin)["format"])'
+    )"
+    "$qemu_img" create -f qcow2 -F "$backing_format" \
+        -b "$backing_image" "$overlay_image"
+}
+
 # ---- Failure Taxonomy (exported for use by sourcing scripts) ----
 
 export COSIM_CAT_TEST_PASS="test_pass"

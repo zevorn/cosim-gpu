@@ -5,13 +5,14 @@ description: Use when you need to send commands to a running cosim guest. Consol
 
 # Cosim Guest
 
-Interact with the cosim guest Linux through the detached runner session created
-by `scripts/run_cosim_tests.sh --hang-env`.
+Interact with the cosim guest Linux through a successful test session kept
+alive with `just test-gpu --keep-alive <program>`. A `just run-launch` session
+keeps the console attached to the terminal instead of creating a detached
+console pipe.
 
 ## Prerequisites
 
-The runner prints the active console log and control pipe when it leaves a hang
-debug environment alive:
+The launcher or test runner prints the active console log and control pipe:
 
 ```text
 Console log: /path/to/qemu.log
@@ -19,7 +20,7 @@ Console pipe: /tmp/<session-name>-<run-id>.session/console.in
 ```
 
 If those lines are unavailable, derive the paths from the run id and session
-name used for the `--hang-env` command:
+name:
 
 ```bash
 SESSION_NAME=qemu-cosim-tests
@@ -110,10 +111,11 @@ printf '%s\n' 'dd if=/root/roms/mi300.rom of=/dev/mem bs=1k seek=768 count=128 &
 printf '%s\n' "printf '%s\n' \"\${COSIM_GUEST_SUDO_PASSWORD:?set COSIM_GUEST_SUDO_PASSWORD}\" | sudo -S poweroff" > "$CONSOLE_PIPE"
 ```
 
-Use privileged shutdown after hang-debug evidence is saved. This matches the
+Use privileged shutdown after guest evidence is saved. This matches the
 privilege level used for ROCm device programs and avoids leaving a live guest
 waiting for manual poweroff. If the guest no longer accepts console input,
-record that fact and use the host cleanup script.
+record that fact and use `just run-clean-orphans` to remove orphaned host
+resources.
 
 ## Integration
 

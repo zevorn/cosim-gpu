@@ -12,8 +12,22 @@ import subprocess
 import tempfile
 import zipfile
 
-from ci_lifecycle import Lifecycle
-from rocm_assets import input_key, signal_group, verify
+from resources.images.bundle import mark_verified_bundle, verify_bundle
+from resources.images.fingerprint import digest_json
+from resources.images.profile import load_profile
+from scripts.ci.ci_lifecycle import Lifecycle
+
+
+ROOT = Path(__file__).resolve().parents[2]
+ROCM_PROFILE = "guest/ubuntu/24.04/x86_64/rocm7_0"
+input_key = digest_json
+
+
+def signal_group(process: subprocess.Popen, number: int) -> None:
+    try:
+        os.killpg(process.pid, number)
+    except ProcessLookupError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -84,8 +98,9 @@ def require_key(manifest: dict, key: str) -> None:
 
 def image_manifest_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo | None:
     for name in (
-        "build/rocm-assets/manifest.json",
-        "rocm-assets/manifest.json",
+        "manifest.json",
+        "build/images/guest/ubuntu/24.04/x86_64/rocm7_0/manifest.json",
+        "images/guest/ubuntu/24.04/x86_64/rocm7_0/manifest.json",
     ):
         try:
             return archive.getinfo(name)
@@ -171,12 +186,12 @@ def image_bundle_root(download: Path) -> Path:
     return bundle
 
 
-def verify_image(output: Path, key: str) -> Path:
+def verify_image(output: Path, key: str) -> tuple[Path, dict]:
     bundle = image_bundle_root(output)
-    manifest = json.loads((bundle / "manifest.json").read_text())
+    profile = load_profile(ROOT, ROCM_PROFILE)
+    manifest = verify_bundle(ROOT, profile, bundle, key)
     require_key(manifest, key)
-    verify(bundle)
-    return bundle
+    return bundle, manifest
 
 
 def record_selection(image: PublishedImage | None, record: Path) -> Path | None:
@@ -225,12 +240,14 @@ def main() -> None:
         if args.operation == "discard":
             discard_download(args.record)
         elif args.operation == "adopt":
-            bundle = verify_image(args.source, args.input_key)
+            bundle, manifest = verify_image(args.source, args.input_key)
             lifecycle.check()
             if args.output.exists() or args.output.is_symlink():
                 raise FileExistsError(args.output)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             bundle.rename(args.output)
+            profile = load_profile(ROOT, ROCM_PROFILE)
+            mark_verified_bundle(ROOT, profile, args.output, manifest)
         elif args.operation == "verify":
             verify_image(args.output, args.input_key)
         else:

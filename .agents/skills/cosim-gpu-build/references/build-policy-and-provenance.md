@@ -1,96 +1,51 @@
 # Build Policy And Provenance
 
-Read this when deciding whether to build, accepting binary evidence, using a
-nonstandard binary, or evaluating stale provenance.
+Use the repository's `just` recipes to build simulator binaries. Source trees
+are git submodules under `third_party/`; generated binaries and build metadata
+belong under the top-level `build/` directory.
 
-## Autonomy Rule
-
-Run the standard metadata inspection and incremental build path directly.
-`bash scripts/cosim_build.sh gem5`, `qemu`, or `all` is the authorized build
-interface whenever a task needs a current binary or provenance reports stale
-metadata.
-
-Missing metadata, stale metadata, missing binary, or source edits since the
-last accepted test are execution conditions, not user decision points.
-
-Do not pause before standard incremental builds, build metadata reads, binary
-hash reads, or local Docker image creation performed by
-`scripts/cosim_build.sh`. If the execution platform requires authorization,
-request only the narrow build-script prefix.
-
-Ask only before a full or cold rebuild, deleting build directories, creating a
-fresh worktree only for rebuild, changing the standard binary path, or using
-`--force` when stale metadata does not require it.
-
-## Default Decision Rule
-
-Inspect existing binary and metadata before rebuilding:
+## Select the build
 
 ```bash
-git -C gem5 rev-parse HEAD
-git -C gem5 log -1 --format='%H%n%s%n%b'
-cat gem5/build/VEGA_X86/.cosim-build-meta
-sha256sum gem5/build/VEGA_X86/gem5.opt
+git submodule status
+git -C third_party/gem5 rev-parse HEAD
+just --evaluate gem5_build_dir
+just build-gem5
+just build-qemu
 ```
 
-Run `bash scripts/cosim_build.sh gem5` when the binary is missing, metadata is
-missing, recorded commit or source fingerprint differs from current source, or
-a source edit invalidated prior rows. This remains the standard incremental
-path.
+Use `just build-m5 x86` for the x86 guest profile. `GEM5_BUILD_DIR` changes the
+gem5 output directory under `build/`; `just build-gem5` always reads sources
+from `third_party/gem5/`.
 
-Use `--force` only for an explicit user request to prove the build pipeline or
-for explicit end-to-end build confirmation.
+## Verify a local binary
 
-Full clean rebuilds, such as deleting `build/VEGA_X86`, are almost never
-appropriate during debugging. A suspected cache issue is not enough by itself;
-record the suspicion and use provenance checks plus incremental rebuilds unless
-the user explicitly requested a full rebuild.
-
-Do not create a new worktree or cold-build gem5 just to prove which binary a
-test used. Pass the intended binary path explicitly and record metadata plus
-hash in the active artifact workspace.
-
-## Rebuild Metadata
-
-For gem5, `scripts/cosim_build.sh` writes
-`gem5/build/VEGA_X86/.cosim-build-meta`:
-
-```text
-commit=<sha>
-source_fingerprint=<sha256>
-timestamp=<iso8601>
-target=VEGA_X86
-```
-
-If current commit and source fingerprint match metadata, the build is skipped.
-If rebuild is needed, rely on the script's incremental behavior.
-
-For QEMU, metadata lives in `qemu/build/.cosim-build-meta`. Rebuild
-incrementally only when binary or metadata is missing, metadata mismatches,
-source changed, or QEMU build behavior itself is under test.
-
-## Source And Binary Provenance
-
-For PR, review, RLCR, or bug-localization tasks, treat
-`gem5/build/VEGA_X86/gem5.opt` as the only valid gem5 test binary unless the
-plan explicitly names another binary.
-
-Before accepting a test row as evidence, record:
+Find the selected gem5 binary using `just --evaluate gem5_build_dir`, then
+record its checksum and the checked-out source revision:
 
 ```bash
-git -C gem5 rev-parse HEAD
-git -C gem5 log -1 --format='%H%n%s%n%b'
-cat gem5/build/VEGA_X86/.cosim-build-meta
-stat -c '%n %s %y' gem5/build/VEGA_X86/gem5.opt
-sha256sum gem5/build/VEGA_X86/gem5.opt
+git -C third_party/gem5 rev-parse HEAD
+sha256sum "$(just --evaluate gem5_build_dir)/gem5.opt"
 ```
 
-If a launch log shows `<repo-root>/build/VEGA_X86/gem5.opt` or
-container path `/gem5-bin/gem5.opt`, classify that row as an alternate-binary
-sample. It must not prove a current gem5 PR unless the plan targeted that
-binary.
+On x86_64 hosts, record `build/qemu/qemu-system-x86_64`. On AArch64 hosts,
+record `build/qemu/qemu-system-aarch64`.
 
-For a planned isolated worktree, the accepted binary is the explicitly named
-`<worktree>/build/VEGA_X86/gem5.opt`. Record `GEM5_DIR`, worktree `HEAD`, build
-commit message, build metadata, binary stat, and binary hash from that same
-worktree before accepting test evidence.
+The source revision identifies the current submodule checkout. A binary
+checksum identifies the executable. Rebuild with `just build-gem5` or
+`just build-qemu` when a binary is missing or its build inputs changed.
+
+## CI artifacts
+
+The CI runtime artifact manifest records source identities, architecture,
+build key, image identity and payload checksums. The cache is reusable only
+when its build key and source revision match the current workflow inputs.
+The CI workflow validates a restored artifact with
+`just test-ci-artifact build/cache/gem5-runtime build/ci-build` before using
+its binary or development image.
+
+## Isolated source trees
+
+The build recipe uses `third_party/gem5/` as its source. See
+`worktree-incremental-build.md` before preparing an isolated cosim-gpu
+worktree, so the selected source checkout and output directory remain explicit.

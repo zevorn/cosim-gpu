@@ -12,7 +12,8 @@ Rust 程序 `cosim` 读取 YAML 拓扑，管理每台机器的 host QEMU、设�
 ```mermaid
 flowchart TD
     Y[YAML 导入和模板] --> T[cosim-topology]
-    T --> P[针对本机的执行计划]
+    T --> I[解析可选镜像配方]
+    I --> P[针对本机的执行计划]
     P --> R[cosim-runtime 会话]
     subgraph M[Machine]
         H[QEMU host]
@@ -49,8 +50,8 @@ host 先于设备停止。
 工作区包含三个 crate。`cosim-cli` 依赖 `cosim-topology` 和 `cosim-runtime`，
 `cosim-runtime` 依赖 `cosim-topology`。
 
-- `cosim-cli/src/main.rs`：Clap 命令 `validate`、`plan`、`graph`、`schema`、`run`
-  和 `clean`；信号升级、标准输入生命线、事件输出和 verdict 行。
+- `cosim-cli/src/main.rs`：Clap 命令 `validate`、`graph`、`schema`、`run` 和
+  `clean`；`run --dry-run` 检查镜像缓存并打印计划，普通运行会先构建或复用配方产物。
 - `cosim-topology/src/raw.rs`、`model.rs`、`size.rs`：解码得到的输入类型、校验后的
   类型（`Topology`、`Machine`、`Host`、`Device`、`Disk`）和 `ByteSize`。
 - `cosim-topology/src/loader.rs`、`resolve.rs`：导入、合并键、模板继承、工作区相对
@@ -66,6 +67,10 @@ host 先于设备停止。
   镜像创建、租约和 overlay。
 - `cosim-runtime/src/manifest.rs`、`assets.rs`：launcher 被杀死或异常退出后的 `cosim clean`
   以及本地输入文件检查。
+- `cosim-runtime/src/images.rs`：调用统一的镜像配方工具，把验证后的磁盘及可选内核
+  加入 payload。
+- `resources/images/`：共享 Packer/QEMU 模板、Ansible 入口和按操作系统组织的配方。
+  `scripts/cosim-image` 允许 Bash 调用相同的构建和校验接口，不启动模拟器。
 
 拓扑库公开 `load`、`graph`、`schema`，校验后的类型根据 `DeviceContext` 和
 `HostContext` 渲染启动参数。运行库公开 `plan`、`run`、`clean`、`check_assets`、
@@ -180,7 +185,7 @@ x86_64 硬件使用 `qemu-system-x86_64`。gem5 的 `VEGA_X86` 模型配置可�
 
 相关寄存器状态包括 `fbBase`、`fbTop`、`fbOffset`、`agpBase`、`agpBot`、
 `agpTop`、`sysAddrL`、`sysAddrH`、`ptBase`、`ptStart` 和 `ptEnd`。
-具体存储方式与寄存器数值转换由 `gem5/src/dev/amdgpu/amdgpu_vm.cc` 实现。
+具体存储方式与寄存器数值转换由 `third_party/gem5/src/dev/amdgpu/amdgpu_vm.cc` 实现。
 
 每个 GART 页表项占八个字节。GPU 页对应的表内偏移由相对于地址窗口的页索引计算。
 PM4 和 SDMA 在其翻译接口需要编码后的页表地址时调用 `getGARTAddr()`。
@@ -236,11 +241,11 @@ YAML 的 MI300X 适配器为每个进程启动一个 GPU，并分配一个 VRAM 
 |---|---|
 | `crates/cosim-topology/src/` | YAML 文档、校验后的类型、内存布局与适配器 |
 | `crates/cosim-runtime/src/` | 执行计划、进程监督、资源所有权与清理 |
-| `gem5/configs/example/gpufs/mi300_cosim.py` | MI300X 对象和共享文件参数 |
-| `gem5/src/mem/physical.{cc,hh}` | 物理内存存储与边界检查 |
-| `gem5/src/dev/amdgpu/mi300x_vfio_user.{cc,hh}` | BAR、配置空间与 IRQ 协议处理 |
-| `gem5/src/dev/amdgpu/amdgpu_vm.{cc,hh}` | 地址翻译 |
-| `gem5/src/dev/amdgpu/pm4_packet_processor.{cc,hh}` | PM4 命令处理 |
-| `gem5/src/dev/amdgpu/sdma_engine.{cc,hh}` | SDMA 执行 |
-| `gem5/src/dev/amdgpu/interrupt_handler.cc` | IH 记录与中断 |
-| `qemu/hw/remote/vfio-user-obj.c` | QEMU 设备服务端接口 |
+| `third_party/gem5/configs/example/gpufs/mi300_cosim.py` | MI300X 对象和共享文件参数 |
+| `third_party/gem5/src/mem/physical.{cc,hh}` | 物理内存存储与边界检查 |
+| `third_party/gem5/src/dev/amdgpu/mi300x_vfio_user.{cc,hh}` | BAR、配置空间与 IRQ 协议处理 |
+| `third_party/gem5/src/dev/amdgpu/amdgpu_vm.{cc,hh}` | 地址翻译 |
+| `third_party/gem5/src/dev/amdgpu/pm4_packet_processor.{cc,hh}` | PM4 命令处理 |
+| `third_party/gem5/src/dev/amdgpu/sdma_engine.{cc,hh}` | SDMA 执行 |
+| `third_party/gem5/src/dev/amdgpu/interrupt_handler.cc` | IH 记录与中断 |
+| `third_party/qemu/hw/remote/vfio-user-obj.c` | QEMU 设备服务端接口 |

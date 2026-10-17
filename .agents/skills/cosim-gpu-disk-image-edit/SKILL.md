@@ -21,18 +21,18 @@ which guestmount || echo "Install: apt install libguestfs-tools"
 ## Disk image location
 
 ```
-gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70
+build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk
 ```
 
-Format: raw, GPT, partition 1 is the root filesystem.
+Format: QCOW2, based on the pinned Ubuntu 24.04 cloud disk image.
 
 ## Mount
 
 ```bash
-DISK="./gem5-resources/src/x86-ubuntu-gpu-ml/disk-image/x86-ubuntu-rocm70"
+DISK="./build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk"
 MOUNTPOINT="/tmp/cosim-disk"
 mkdir -p "$MOUNTPOINT"
-guestmount -a "$DISK" -m /dev/sda1 --rw "$MOUNTPOINT"
+guestmount -a "$DISK" -i --rw "$MOUNTPOINT"
 ```
 
 ## Edit scope
@@ -43,7 +43,7 @@ Supported edit classes:
 - Add or update systemd units and matching enablement symlinks.
 - Add or update kernel module configuration under `/etc/modprobe.d/`.
 - Install ROCm runtime debug components through repository scripts when the task is runtime debugging.
-- Inspect disk layout with `fdisk -l "$DISK"` if `guestmount` cannot find `/dev/sda1`.
+- Inspect disk layout with `qemu-img info "$DISK"` if `guestmount` cannot inspect the image.
 
 Keep the concrete file contents in the task artifact or source patch. Do not embed large service templates or generated scripts in the skill itself.
 
@@ -60,5 +60,5 @@ ls "$MOUNTPOINT" 2>/dev/null && echo "Still mounted!" || echo "OK"
 ## Notes
 
 - `guestmount` uses FUSE — no sudo needed
-- Changes write directly to raw image file
-- Back up the disk image before risky changes (55 GB, consider snapshots)
+- Changes write directly to the QCOW2 image file
+- Back up the disk image before risky changes (56 GB virtual capacity)

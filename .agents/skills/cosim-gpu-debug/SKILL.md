@@ -103,7 +103,7 @@ For the known MAP_QUEUES VMID assertion, inspect:
 
 ```bash
 grep -n 'assert.*vmid\|assert(queue_vmid)\|MAPQueues' \
-  gem5/src/dev/amdgpu/pm4_packet_processor.cc
+  third_party/gem5/src/dev/amdgpu/pm4_packet_processor.cc
 ```
 
 Then read:

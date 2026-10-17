@@ -14,7 +14,8 @@ supervises the processes.
 ```mermaid
 flowchart LR
     Y[YAML documents] --> T[cosim-topology: load and validate]
-    T --> P[cosim-runtime: plan with ExecEnv and SessionLayout]
+    T --> I[cosim-runtime: resolve image profile]
+    I --> P[cosim-runtime: plan with ExecEnv and SessionLayout]
     P --> R[cosim-runtime: run the session]
     R --> V[verdict.json]
 ```
@@ -27,8 +28,8 @@ flowchart LR
 
 ## Documents
 
-A document contains `version: 1` and any of `imports`, `templates`, `kinds`
-and `machines`.
+A topology document contains `version: 1` and any of `imports`, `templates`,
+`kinds` and `machines`.
 
 ```yaml
 version: 1
@@ -46,8 +47,15 @@ machines:
 
 Unknown fields are errors. `cosim schema` prints the JSON Schema of the format.
 Guest boot and storage inputs live in a separate payload document. Select it
-with `--payload samples/payloads/ubuntu-rocm7_0.yaml` for `validate`, `plan` or
-`run`; the same payload applies to every machine in the topology.
+with `--payload samples/payloads/ubuntu-rocm7_0.yaml` for `validate` or `run`;
+the same payload applies to every machine in the topology. `cosim run --dry-run`
+checks the payload and selected image profile, displays the resolved launch
+plan and cache status, and performs no build or launch.
+
+A payload may set `image.profile` to a profile under
+`resources/images/profiles/`. The profile supplies its boot kernel and root
+disk. A normal `cosim run` builds the profile on a cache miss, verifies its
+manifest, then checks assets and launches the topology.
 
 ### Imports and templates
 
@@ -71,9 +79,10 @@ flowchart LR
 ```
 
 Resource paths are relative to the workspace root: executables containing `/`,
-device `config` and `pci.rom`, payload `boot.kernel` and `boot.initrd`, and disk
-`path` and `backing`. Relative paths cannot contain `..`; absolute paths are
-accepted. Bare executable names are searched in `PATH` during planning.
+device `config` and `pci.rom`, payload `boot.kernel` and `boot.initrd`, disk
+`path` and `backing`, and the profile identifier under `image.profile`.
+Relative paths cannot contain `..`; absolute paths are accepted. Bare
+executable names are searched in `PATH` during planning.
 `scripts/dev.sh` sets `COSIM_WORKSPACE` to the repository root. Direct `cosim`
 invocations use the current directory by default; set `COSIM_WORKSPACE` to
 select another workspace root. YAML resource values contain paths such as
@@ -189,8 +198,9 @@ Each disk declares exactly one of `path` or `backing`, a `format` (`raw` or
 
 ## Planning
 
-`cosim plan <yaml>` prints the plan that `cosim run` executes: executables,
-arguments, environments, readiness probes, memory layouts and disk targets.
+`cosim run --dry-run <yaml>` validates the topology and payload, then prints the
+resolved executables, arguments, environments, readiness probes, memory
+layouts, disk targets and image cache action. It performs no build or launch.
 
 - `ExecEnv` records the page size, an absolute `PATH` and the disk lock
   directory (`COSIM_DISK_LOCK_DIR`, default `~/.cache/cosim-gpu/disk-locks`).

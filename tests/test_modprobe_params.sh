@@ -68,7 +68,6 @@ check_file() {
 
 COSIM_SCRIPTS=(
     "$REPO_ROOT/scripts/cosim_guest_setup.sh"
-    "$REPO_ROOT/gem5-resources/src/x86-ubuntu-gpu-ml/files/cosim-gpu-setup.sh"
 )
 
 for script in "${COSIM_SCRIPTS[@]}"; do

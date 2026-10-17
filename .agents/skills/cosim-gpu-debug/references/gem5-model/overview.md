@@ -22,16 +22,16 @@ Guest ROCm driver
 
 | Area | Files | Use |
 |------|-------|-----|
-| Device | `gem5/src/dev/amdgpu/amdgpu_device.cc/hh` | BARs, VMID allocation, PASID mapping, interrupts |
-| VM | `gem5/src/dev/amdgpu/amdgpu_vm.cc/hh` | GPU page tables, GART, translation, TLB/PWC invalidation |
-| PM4 | `gem5/src/dev/amdgpu/pm4_packet_processor.cc/hh` | MAP_PROCESS, RUN_LIST, INDIRECT_BUFFER, RELEASE_MEM, WRITE_DATA |
-| Interrupts | `gem5/src/dev/amdgpu/interrupt_handler.cc/hh` | CP_EOP and TRAP interrupt cookies |
-| SDMA | `gem5/src/dev/amdgpu/sdma_engine.cc/hh` | copy operations |
-| HSA | `gem5/src/dev/hsa/hsa_packet_processor.cc/hh` | AQL dispatch, barriers, signals |
-| Scheduler | `gem5/src/dev/hsa/hw_scheduler.cc/hh` | queue management and RUN_LIST |
-| Compute | `gem5/src/gpu-compute/gpu_command_processor.cc/hh` | kernel launch and kernarg handling |
-| TLB | `gem5/src/arch/amdgpu/vega/tlb.cc` | TLB and page-walk-cache behavior |
-| Ruby | `gem5/src/mem/ruby/**` | GPU cache hierarchy and maintenance callbacks |
+| Device | `third_party/gem5/src/dev/amdgpu/amdgpu_device.cc/hh` | BARs, VMID allocation, PASID mapping, interrupts |
+| VM | `third_party/gem5/src/dev/amdgpu/amdgpu_vm.cc/hh` | GPU page tables, GART, translation, TLB/PWC invalidation |
+| PM4 | `third_party/gem5/src/dev/amdgpu/pm4_packet_processor.cc/hh` | MAP_PROCESS, RUN_LIST, INDIRECT_BUFFER, RELEASE_MEM, WRITE_DATA |
+| Interrupts | `third_party/gem5/src/dev/amdgpu/interrupt_handler.cc/hh` | CP_EOP and TRAP interrupt cookies |
+| SDMA | `third_party/gem5/src/dev/amdgpu/sdma_engine.cc/hh` | copy operations |
+| HSA | `third_party/gem5/src/dev/hsa/hsa_packet_processor.cc/hh` | AQL dispatch, barriers, signals |
+| Scheduler | `third_party/gem5/src/dev/hsa/hw_scheduler.cc/hh` | queue management and RUN_LIST |
+| Compute | `third_party/gem5/src/gpu-compute/gpu_command_processor.cc/hh` | kernel launch and kernarg handling |
+| TLB | `third_party/gem5/src/arch/amdgpu/vega/tlb.cc` | TLB and page-walk-cache behavior |
+| Ruby | `third_party/gem5/src/mem/ruby/**` | GPU cache hierarchy and maintenance callbacks |
 
 ## PM4 command flow
 
@@ -74,7 +74,7 @@ abort, socket close, or a missing gem5 container, inspect:
 
 ```bash
 grep -n 'assert.*vmid\|assert(queue_vmid)\|MAPQueues' \
-  gem5/src/dev/amdgpu/pm4_packet_processor.cc
+  third_party/gem5/src/dev/amdgpu/pm4_packet_processor.cc
 ```
 
 If `assert(queue_vmid)` is present near MAP_QUEUES, read

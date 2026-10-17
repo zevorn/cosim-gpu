@@ -22,7 +22,7 @@ const SOCKET_PATH_LIMIT: usize = if cfg!(target_os = "linux") { 108 } else { 104
 
 /// Everything a session needs: commands, environments, paths and memory layouts.
 ///
-/// `cosim plan` prints this value and `cosim run` executes it unchanged.
+/// `cosim run --dry-run` prints this value and `cosim run` executes it unchanged.
 #[non_exhaustive]
 #[derive(Clone, Debug, Serialize)]
 pub struct Plan {

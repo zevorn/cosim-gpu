@@ -16,10 +16,10 @@ when a run must produce case-managed evidence.
 ## Quickstart
 
 ```bash
-bash scripts/cosim_cleanup.sh                    # always preflight first
-./scripts/cosim_launch.sh                        # vfio-user (default)
-./scripts/cosim_launch.sh --gem5-debug MI300XCosim  # with debug trace
-./scripts/cosim_launch.sh --cosim-backend legacy    # legacy cosim socket
+just run-preflight
+just run-launch
+just run-launch --gem5-debug MI300XCosim
+just run-launch --cosim-backend legacy
 ```
 
 After guest boots, the driver loads automatically via `cosim-gpu-setup.service`.
@@ -27,11 +27,9 @@ If not, manually load with `cosim-gpu-guest`.
 
 ## Autonomy
 
-Run `bash scripts/cosim_cleanup.sh` before launch without asking the user. This
-is the normal preflight for cosim and removes only known leftover cosim state.
-Do not ask before the standard launcher either. Ask only before broad manual
-cleanup outside repository scripts, deleting unrelated files, or a full/cold
-rebuild.
+Run `just run-preflight` to inspect host resources before launch. It does not
+change files or remove resources. Use `just run-clean-orphans` only when
+orphaned resources need removal.
 
 ## Backends
 
@@ -71,7 +69,7 @@ discovery=2         # firmware-based discovery
 
 ## Integration
 
-- **Before**: use `cosim-gpu-build` directly when binaries are stale or missing
-- **Before**: run `bash scripts/cosim_cleanup.sh` directly to clear leftover state
+- **Before**: use `cosim-gpu-build` when binaries are stale or missing
+- **Before**: run `just run-preflight` to inspect host resources
 - **While running**: `cosim-gpu-guest` to interact, `cosim-gpu-debug` to inspect
 - **Testing**: Prefer `cosim-gpu-test` for automated execution (handles launch internally)

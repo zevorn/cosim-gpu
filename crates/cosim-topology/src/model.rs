@@ -94,10 +94,20 @@ pub struct Machine {
 pub struct Payload {
     /// Canonical path of the payload document.
     pub source: PathBuf,
+    /// Guest image profile that supplies the boot kernel and root disk.
+    pub image: Option<ImageProfile>,
     /// Direct kernel boot configuration.
     pub boot: Option<DirectBoot>,
     /// Storage attached to each machine in the topology.
     pub disks: Vec<Disk>,
+}
+
+/// A reusable guest image profile selected by a payload.
+#[non_exhaustive]
+#[derive(Clone, Debug, Serialize)]
+pub struct ImageProfile {
+    /// Profile identifier relative to `resources/images/profiles`.
+    pub profile: String,
 }
 
 /// An executable and the environment it receives.

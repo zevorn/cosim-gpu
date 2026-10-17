@@ -34,7 +34,9 @@ class Gem5BuildPathTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "build/gem5/x86_64/VEGA_X86")
 
     def test_rejects_directories_outside_the_build_root(self):
-        result = resolve_gem5_build_dir("gem5/build/x86_64/VEGA_X86")
+        result = resolve_gem5_build_dir(
+            "third_party/gem5/build/x86_64/VEGA_X86"
+        )
         self.assertNotEqual(result.returncode, 0)
 
     def test_rejects_parent_directory_traversal(self):

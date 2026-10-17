@@ -6,18 +6,19 @@ project.
 
 ## Repository Shape
 
-The top-level repository records two nested repositories:
+The top-level repository records all source submodules under `third_party/`:
 
 | Path | Meaning |
 |---|---|
 | `.agents` | reusable cosim GPU skills vendored in-tree |
-| `gem5` | simulator source submodule |
-| `gem5-resources` | resources and guest image inputs |
+| `third_party/gem5` | gem5 simulator source submodule |
+| `third_party/gem5-resources` | gem5 resources and guest image inputs |
+| `third_party/qemu` | QEMU source submodule |
 
-The superproject records `gem5` and `gem5-resources` commits as gitlinks.
+The superproject records each submodule commit as a gitlink in `.gitmodules`.
 `.agents` is ordinary top-level content with no separate skill repository or
 gitlink. A dirty submodule work tree is not the same as a changed superproject
-pointer.
+pointer. Simulator build outputs belong under the top-level `build/` directory.
 
 ## Skill Location
 
@@ -32,12 +33,13 @@ references current when skill folders are renamed.
 
 - Changes inside `.agents` are ordinary top-level repository changes and are
   committed directly in cosim-gpu.
-- Changes inside `gem5` or `gem5-resources` must be committed in that submodule
-  first. Then commit the top-level gitlink pointer.
+- Changes inside `third_party/gem5`, `third_party/gem5-resources` or
+  `third_party/qemu` must be committed in that submodule first. Then commit the
+  top-level gitlink pointer.
 - Top-level script, docs, tests, and ignore-rule changes belong to the
   superproject.
-- Do not mix `gem5` or `gem5-resources` internal source changes and top-level
-  pointer updates in one submodule commit; they are different repositories.
+- Do not mix submodule source changes and the top-level pointer update in one
+  submodule commit; they belong to different repositories.
 
 ## Project Commit Rules
 
@@ -76,14 +78,14 @@ explicitly a temporary patch or source evidence artifact.
 
 ## Safe Submodule Pointer Review
 
-Before committing a submodule pointer (`gem5` or `gem5-resources`; `.agents`
-is vendored and has no pointer):
+Before committing a submodule pointer under `third_party/` (`.agents` is
+vendored and has no pointer):
 
 ```bash
 git submodule status
-git -C <submodule> status --short
-git -C <submodule> log --oneline -1
-git diff --submodule=short -- <submodule>
+git -C third_party/<submodule> status --short
+git -C third_party/<submodule> log --oneline -1
+git diff --submodule=short -- third_party/<submodule>
 ```
 
 If the submodule has local commits, confirm the top-level pointer records the

@@ -79,8 +79,9 @@ renders a JSON string array. Each element becomes one process argument;
 execution uses no shell interpretation.
 The host adapter must bind the generated memory pool and expose the declared
 QMP and serial endpoints.
-`cosim plan` contains the exact executable, arguments, environment and
-resources that `run` consumes.
+`cosim run --dry-run` validates the payload and selected image profile, then
+prints the executable, arguments, environment, resources and cache action that
+`cosim run` would consume. It does not build the image or launch processes.
 Every device process runs natively in the execution environment, which is the
 Linux host or the development container.
 Every process an adapter starts runs in the foreground, keeps all resource

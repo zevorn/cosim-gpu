@@ -87,9 +87,9 @@ templates:
   workspace-device:
     kind: model
     ready_log: listening
-    config: gem5/device.py
-    runtime: {binary: gem5/bin/device}
-    pci: {rom: gem5-resources/device.rom}
+    config: third_party/gem5/device.py
+    runtime: {binary: third_party/gem5/bin/device}
+    pci: {rom: third_party/gem5-resources/device.rom}
 machines:
   - id: m
     host:
@@ -104,10 +104,10 @@ machines:
         "payloads/ubuntu.yaml",
         r#"version: 1
 boot:
-  kernel: gem5-resources/vmlinux
-  initrd: gem5-resources/initrd
+  kernel: third_party/gem5-resources/vmlinux
+  initrd: third_party/gem5-resources/initrd
 disks:
-  - {id: root, backing: gem5-resources/root.raw, format: raw}
+  - {id: root, backing: third_party/gem5-resources/root.raw, format: raw}
 "#,
     );
 
@@ -122,17 +122,23 @@ disks:
             .into_owned()
     );
     let boot = payload.boot.as_ref().unwrap();
-    assert_eq!(boot.kernel, workspace.join("gem5-resources/vmlinux"));
-    assert_eq!(boot.initrd, Some(workspace.join("gem5-resources/initrd")));
+    assert_eq!(
+        boot.kernel,
+        workspace.join("third_party/gem5-resources/vmlinux")
+    );
+    assert_eq!(
+        boot.initrd,
+        Some(workspace.join("third_party/gem5-resources/initrd"))
+    );
     assert_eq!(
         payload.disks[0].source,
-        workspace.join("gem5-resources/root.raw")
+        workspace.join("third_party/gem5-resources/root.raw")
     );
     let device = &machine.devices[0];
     assert_eq!(
         device.program.binary,
         workspace
-            .join("gem5/bin/device")
+            .join("third_party/gem5/bin/device")
             .to_string_lossy()
             .into_owned()
     );
@@ -141,11 +147,15 @@ disks:
     };
     assert_eq!(
         adapter.config.as_deref(),
-        Some(workspace.join("gem5/device.py").as_path())
+        Some(workspace.join("third_party/gem5/device.py").as_path())
     );
     assert_eq!(
         device.pci.rom.as_deref(),
-        Some(workspace.join("gem5-resources/device.rom").as_path())
+        Some(
+            workspace
+                .join("third_party/gem5-resources/device.rom")
+                .as_path()
+        )
     );
 }
 
@@ -530,6 +540,61 @@ fn guest_hints_require_a_payload_with_kernel_boot() {
 }
 
 #[test]
+fn image_profile_materializes_a_kernel_and_immutable_root_disk() {
+    let root = tempfile::tempdir().unwrap();
+    let mut payload = payload(
+        root.path(),
+        "image: {profile: guest/ubuntu/24.04/x86_64/rocm7_0}",
+    )
+    .unwrap();
+    let kernel = root.path().join("build/images/profile/kernel");
+    let disk = root.path().join("build/images/profile/disk");
+    cosim_topology::materialize_image_profile(
+        &mut payload,
+        Some(kernel.clone()),
+        disk.clone(),
+        "root",
+        DiskFormat::Qcow2,
+        cosim_topology::DiskBus::Virtio,
+        Some("console=ttyS0 root=/dev/vda1 rw".to_owned()),
+    )
+    .unwrap();
+    assert_eq!(payload.boot.as_ref().unwrap().kernel, kernel);
+    assert_eq!(
+        payload.boot.as_ref().unwrap().cmdline.as_deref(),
+        Some("console=ttyS0 root=/dev/vda1 rw")
+    );
+    assert_eq!(payload.disks.len(), 1);
+    assert_eq!(payload.disks[0].id.as_str(), "root");
+    assert_eq!(payload.disks[0].source, disk);
+    assert_eq!(payload.disks[0].mode, DiskMode::Overlay);
+    assert!(payload.disks[0].boot);
+}
+
+#[test]
+fn image_profile_rejects_disk_ids_that_differ_only_by_ascii_case() {
+    let root = tempfile::tempdir().unwrap();
+    let mut payload = payload(
+        root.path(),
+        "image: {profile: guest/ubuntu/24.04/x86_64/rocm7_0}\ndisks: [{id: ROOT, path: existing.qcow2}]",
+    )
+    .unwrap();
+    let error = cosim_topology::materialize_image_profile(
+        &mut payload,
+        None,
+        root.path().join("build/images/profile/disk"),
+        "root",
+        DiskFormat::Qcow2,
+        cosim_topology::DiskBus::Virtio,
+        None,
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("conflicts with a payload disk"), "{error}");
+}
+
+#[test]
 fn disk_modes_follow_access_and_snapshot_declarations() {
     let root = tempfile::tempdir().unwrap();
     let topology = machine(root.path(), "", "[]").unwrap();
@@ -851,9 +916,20 @@ fn sample_host_template_attaches_devices_behind_root_ports() {
         &sample_root,
     )
     .unwrap();
-    let payload = load_payload_with_workspace(
+    let mut payload = load_payload_with_workspace(
         &sample_root.join("payloads/ubuntu-rocm7_0.yaml"),
         &workspace,
+    )
+    .unwrap();
+    let image_dir = workspace.join("build/images/guest/ubuntu/24.04/x86_64/rocm7_0");
+    cosim_topology::materialize_image_profile(
+        &mut payload,
+        Some(image_dir.join("kernel")),
+        image_dir.join("disk"),
+        "root",
+        DiskFormat::Qcow2,
+        cosim_topology::DiskBus::Virtio,
+        Some("console=ttyS0 root=/dev/vda1 rw nokaslr modprobe.blacklist=amdgpu".to_owned()),
     )
     .unwrap();
     let machine = &topology.machines[0];
@@ -920,7 +996,9 @@ fn sample_host_template_attaches_devices_behind_root_ports() {
         .collect::<Vec<_>>();
     assert_eq!(clients[3], (json!("rp3"), json!(sockets[3])));
     let kernel = launch.argv.iter().position(|arg| arg == "-kernel").unwrap();
-    assert!(launch.argv[kernel + 1].ends_with("build/rocm-local-installed/kernel"));
+    assert!(
+        launch.argv[kernel + 1].ends_with("build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel")
+    );
     let append = launch.argv.iter().position(|arg| arg == "-append").unwrap();
     assert!(launch.argv[append + 1].starts_with("console=ttyS0"));
     let blockdev = launch

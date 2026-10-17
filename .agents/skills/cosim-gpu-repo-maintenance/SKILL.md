@@ -10,8 +10,8 @@ does not need cosim build, launch, test, debug, review, or RLCR evidence.
 
 Examples:
 
-- locate or update the `gem5` or `gem5-resources` submodule pointer, or edit
-  the vendored `.agents` skill files
+- locate or update a submodule under `third_party/`, or edit the vendored
+  `.agents` skill files
 - split a large local commit
 - rewrite local unpushed commits for better topic boundaries
 - audit skill files for sensitive literals or unwanted coupling
@@ -59,11 +59,12 @@ editing skill files, or preparing project commits.
 2. Classify changes by owner:
 
    - top-level repository files, including vendored `.agents` skills
-   - `gem5` source submodule
-   - `gem5-resources` data submodule
+   - `third_party/gem5` source submodule
+   - `third_party/gem5-resources` resource submodule
+   - `third_party/qemu` source submodule
    - generated artifacts or local scratch
 
-3. Commit inside `gem5` or `gem5-resources` before recording their superproject
+3. Commit inside the affected submodule before recording its superproject
    gitlink. `.agents` changes are ordinary top-level changes.
 
 4. For commit splitting, group by behavior and ownership. Keep generated
@@ -82,8 +83,8 @@ editing skill files, or preparing project commits.
 
    This is a skill-design check, not cosim execution evidence.
 
-6. Before final reporting, show current `gem5`/`gem5-resources` submodule
-   pointers and remaining dirty files.
+6. Before final reporting, show current `third_party/` submodule pointers and
+   remaining dirty files.
 
 ## Commit Messages
 

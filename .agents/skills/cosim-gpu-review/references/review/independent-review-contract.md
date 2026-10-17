@@ -51,7 +51,7 @@ formatter churn mixed with behavior changes fails review hygiene unless the
 task is explicitly formatting-only. When formatter scope is in question, record
 normal and whitespace-ignored diff stats.
 
-For gem5 source changes, use gem5 repository tooling from inside `gem5/`.
+For gem5 source changes, use gem5 repository tooling from inside `third_party/gem5/`.
 Generic top-level format checks do not prove gem5 CI style.
 
 ## Evidence Records

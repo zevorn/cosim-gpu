@@ -24,9 +24,9 @@ This PoC validates:
   AC-16: gem5 GPU registers as SST component
 
 Reuses:
-  - gem5/src/sst/OutgoingRequestBridge.py
-  - gem5/src/sst/outgoing_request_bridge.hh
-  - gem5/ext/sst/sst_responder_subcomponent.hh
+  - third_party/gem5/src/sst/OutgoingRequestBridge.py
+  - third_party/gem5/src/sst/outgoing_request_bridge.hh
+  - third_party/gem5/ext/sst/sst_responder_subcomponent.hh
 """
 
 # SST configuration would use sst.Component and sst.SubComponent APIs.
@@ -77,7 +77,10 @@ def build_sst_config():
         import sst
     except ImportError:
         print("SST Python module not available. This config requires SST.")
-        print("Build gem5 as SST library: see gem5/ext/sst/README.md")
+        print(
+            "Build gem5 as SST library; see "
+            "third_party/gem5/ext/sst/README.md"
+        )
         return
 
     cfg = SST_CONFIG

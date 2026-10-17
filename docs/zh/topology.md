@@ -13,7 +13,8 @@ YAML 拓扑描述若干台机器。每台机器包含一个 QEMU host、通过 v
 ```mermaid
 flowchart LR
     Y[YAML 文档] --> T[cosim-topology: 加载与校验]
-    T --> P[cosim-runtime: 结合 ExecEnv 和 SessionLayout 生成计划]
+    T --> I[cosim-runtime: 解析镜像配方]
+    I --> P[cosim-runtime: 结合 ExecEnv 和 SessionLayout 生成计划]
     P --> R[cosim-runtime: 运行会话]
     R --> V[verdict.json]
 ```
@@ -25,7 +26,7 @@ flowchart LR
 
 ## 文档
 
-文档包含 `version: 1`，以及 `imports`、`templates`、`kinds`、`machines` 中的任意几项。
+拓扑文档包含 `version: 1`，以及 `imports`、`templates`、`kinds`、`machines` 中的任意几项。
 
 ```yaml
 version: 1
@@ -42,9 +43,14 @@ machines:
 ```
 
 未知字段会报错。`cosim schema` 输出该格式的 JSON Schema。客户机启动和存储输入单独
-保存在 payload 文档中。运行 `validate`、`plan` 或 `run` 时，通过
+保存在 payload 文档中。运行 `validate` 或 `run` 时，通过
 `--payload samples/payloads/ubuntu-rocm7_0.yaml` 选择；一个 payload 会应用于拓扑中的
-每台机器。
+每台机器。`cosim run --dry-run` 会检查 payload 和所选镜像配方，显示解析后的启动计划和
+缓存状态，不会构建或启动模拟器。
+
+payload 可以通过 `image.profile` 选择 `resources/images/profiles/` 下的配方。配方提供
+启动内核和根磁盘。普通 `cosim run` 会在缓存未命中时构建配方，校验 manifest，然后检查
+输入文件并启动拓扑。
 
 ### 导入与模板
 
@@ -65,9 +71,9 @@ flowchart LR
 ```
 
 资源路径相对于工作区根目录解析，包括含有 `/` 的可执行文件、设备 `config` 和
-`pci.rom`、payload 的 `boot.kernel` 和 `boot.initrd`，以及磁盘的 `path` 和 `backing`。
-相对路径不能包含 `..`；绝对路径可以使用。不含 `/` 的可执行文件名称在生成计划时从
-`PATH` 中查找。`scripts/dev.sh` 会将 `COSIM_WORKSPACE` 设置为仓库根目录。直接运行
+`pci.rom`、payload 的 `boot.kernel` 和 `boot.initrd`、磁盘的 `path` 和 `backing`，以及
+`image.profile` 指定的配方标识。相对路径不能包含 `..`；绝对路径可以使用。不含 `/` 的
+可执行文件名称在生成计划时从 `PATH` 中查找。`scripts/dev.sh` 会将 `COSIM_WORKSPACE` 设置为仓库根目录。直接运行
 `cosim` 时默认使用当前目录；可以设置 `COSIM_WORKSPACE` 选择其他工作区。YAML 资源值
 直接写 `build/qemu/qemu-system-x86_64` 这类路径，不需要添加工作区变量前缀。
 
@@ -166,8 +172,8 @@ QEMU 设备服务端通过 vfio-user DMA 映射获得客户机内存。
 
 ## 生成执行计划
 
-`cosim plan <yaml>` 输出 `cosim run` 执行的计划：程序、参数、环境、就绪探测、内存
-布局和磁盘目标。
+`cosim run --dry-run <yaml>` 会校验拓扑与 payload，并显示解析后的程序、参数、环境、
+就绪探测、内存布局、磁盘目标和镜像缓存操作。该命令不会构建或启动进程。
 
 - `ExecEnv` 记录页大小、绝对路径形式的 `PATH` 和磁盘锁目录
   （`COSIM_DISK_LOCK_DIR`，默认 `~/.cache/cosim-gpu/disk-locks`）。锁文件在会话结束后

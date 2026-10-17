@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -12,8 +12,9 @@ use serde_json::{Map, Value};
 
 use crate::adapter::{Adapter, CommandTemplate, Gem5Mi300x, QemuDevice, TemplateDevice};
 use crate::model::{
-    Device, DeviceModel, DirectBoot, Disk, DiskFormat, DiskMode, GuestHints, Host, Identifier,
-    Machine, MemoryRegion, Payload, Pci, Program, Role, SerialReady, Topology,
+    Device, DeviceModel, DirectBoot, Disk, DiskBus, DiskFormat, DiskMode, GuestHints, Host,
+    Identifier, ImageProfile, Machine, MemoryRegion, Payload, Pci, Program, Role, SerialReady,
+    Topology,
 };
 use crate::raw;
 use crate::size::ByteSize;
@@ -105,21 +106,52 @@ pub(crate) fn topology(
 
 /// Converts a payload document into validated boot and storage inputs.
 pub(crate) fn payload(raw: raw::PayloadDocument, source: PathBuf) -> Result<Payload> {
+    let raw::PayloadDocument {
+        version,
+        image,
+        boot: raw_boot,
+        disks: raw_disks,
+        snapshot,
+    } = raw;
+    ensure!(version == 1, "unsupported payload version {}", version);
+    let image = image
+        .map(|image| {
+            let profile = Path::new(&image.profile);
+            ensure!(
+                !image.profile.is_empty()
+                    && !image.profile.contains('\\')
+                    && !profile.is_absolute()
+                    && profile
+                        .components()
+                        .all(|component| matches!(component, Component::Normal(_))),
+                "image.profile must be a nonempty relative profile path"
+            );
+            Ok(ImageProfile {
+                profile: image.profile,
+            })
+        })
+        .transpose()?;
     ensure!(
-        raw.version == 1,
-        "unsupported payload version {}",
-        raw.version
+        image.is_none() || raw_boot.kernel.is_none(),
+        "image.profile supplies boot.kernel; omit payload.boot.kernel"
+    );
+    ensure!(
+        image.is_none() || !raw_disks.iter().any(|disk| disk.boot),
+        "image.profile supplies the boot disk; omit boot: true from payload.disks"
     );
     Ok(Payload {
         source,
-        boot: boot(raw.boot)?,
-        disks: disks(raw.disks, raw.snapshot)?,
+        image,
+        boot: boot(raw_boot)?,
+        disks: disks(raw_disks, snapshot)?,
     })
 }
 
 /// Checks payload constraints that depend on the topology's machine set.
 pub fn validate_payload(topology: &Topology, payload: Option<&Payload>) -> Result<()> {
-    if payload.and_then(|payload| payload.boot.as_ref()).is_none() {
+    if payload.is_some_and(|payload| payload.boot.is_none() && payload.image.is_none())
+        || payload.is_none()
+    {
         for device in topology
             .machines
             .iter()
@@ -135,6 +167,65 @@ pub fn validate_payload(topology: &Topology, payload: Option<&Payload>) -> Resul
     if let Some(payload) = payload {
         disk_sharing(&topology.machines, &payload.disks)?;
     }
+    Ok(())
+}
+
+/// Resolves a profile selection into the kernel and root disk supplied by its artifact bundle.
+pub fn materialize_image_profile(
+    payload: &mut Payload,
+    kernel: Option<PathBuf>,
+    disk: PathBuf,
+    disk_id: &str,
+    disk_format: DiskFormat,
+    disk_bus: DiskBus,
+    kernel_cmdline: Option<String>,
+) -> Result<()> {
+    ensure!(
+        payload.image.is_some(),
+        "payload does not select an image profile"
+    );
+    ensure!(
+        payload.boot.is_none(),
+        "image profile cannot replace an existing boot kernel"
+    );
+    ensure!(
+        disk.is_absolute(),
+        "image profile disk path must be absolute"
+    );
+    ensure!(
+        kernel.is_some() || kernel_cmdline.is_none(),
+        "image profile kernel command line requires a kernel artifact"
+    );
+    ensure!(
+        !payload
+            .disks
+            .iter()
+            .any(|disk| disk.id.as_str().eq_ignore_ascii_case(disk_id)),
+        "image profile disk id {disk_id} conflicts with a payload disk"
+    );
+    let id = Identifier::new(disk_id.to_owned())?;
+    payload.boot = kernel
+        .map(|kernel| {
+            ensure!(
+                kernel.is_absolute(),
+                "image profile kernel path must be absolute"
+            );
+            Ok(DirectBoot {
+                kernel,
+                initrd: None,
+                cmdline: kernel_cmdline,
+            })
+        })
+        .transpose()?;
+    payload.disks.push(Disk {
+        id,
+        source: disk,
+        format: disk_format,
+        bus: disk_bus,
+        boot: true,
+        mode: DiskMode::Overlay,
+        create: None,
+    });
     Ok(())
 }
 

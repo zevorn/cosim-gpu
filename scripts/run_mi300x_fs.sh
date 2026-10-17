@@ -4,9 +4,9 @@
 #
 # Adapted for the local development layout:
 #   cosim-gpu/
-#     gem5/                     <- gem5 source
+#     third_party/gem5/         <- gem5 source
 #     build/gem5/               <- gem5 build output
-#     gem5-resources/           <- image recipe, ROM and GPU app sources
+#     third_party/gem5-resources/ <- ROM and GPU app sources
 #     scripts/                  <- this script
 #
 # Usage:
@@ -27,11 +27,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COSIM_DIR="$(dirname "$SCRIPT_DIR")"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/cosim_lib.sh"
-GEM5_DIR="${COSIM_DIR}/gem5"
-RESOURCES_DIR="${COSIM_DIR}/gem5-resources"
+GEM5_DIR="${COSIM_DIR}/third_party/gem5"
+RESOURCES_DIR="${COSIM_DIR}/third_party/gem5-resources"
 
 # Built artifacts (ROCm 7.0 disk image)
-DISK_IMAGE_DIR="${COSIM_DIR}/build/rocm-local-installed"
+DISK_IMAGE_DIR="${COSIM_DIR}/build/images/guest/ubuntu/24.04/x86_64/rocm7_0"
 DISK_IMAGE="${DISK_IMAGE_DIR}/disk"
 KERNEL="${DISK_IMAGE_DIR}/kernel"
 SQUARE_APP="${COSIM_DIR}/build/apps/square/square.default"
@@ -146,7 +146,7 @@ get_resources() {
     fi
 
     info "Initializing gem5-resources submodule..."
-    git -C "$COSIM_DIR" submodule update --init gem5-resources
+    git -C "$COSIM_DIR" submodule update --init third_party/gem5-resources
     info "gem5-resources initialized"
 }
 

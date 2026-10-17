@@ -29,7 +29,8 @@ build_qemu() {
             grep x-vfio-user-server >/dev/null; then
         (
             cd "$build_dir"
-            "$root/qemu/configure" --target-list="$arch-softmmu" --enable-kvm \
+            "$root/third_party/qemu/configure" \
+                --target-list="$arch-softmmu" --enable-kvm \
                 --enable-vfio-user-server --disable-docs
         )
     fi
@@ -58,7 +59,7 @@ build_gem5() {
             return 2
             ;;
     esac
-    cd "$root/gem5"
+    cd "$root/third_party/gem5"
     mkdir -p "$build_dir/scratch"
     export TMPDIR="$build_dir/scratch"
     if [ ! -f "$build_dir/gem5.build/config" ]; then
@@ -69,7 +70,7 @@ build_gem5() {
 
 build_m5() {
     local abi="$1"
-    local source_build="$root/gem5/util/m5/build"
+    local source_build="$root/third_party/gem5/util/m5/build"
     local build_dir="$root/build/m5"
     if [ -L "$source_build" ]; then
         if [ "$(readlink "$source_build")" != "$build_dir" ]; then
@@ -92,7 +93,7 @@ build_m5() {
         ln -s "$build_dir" "$source_build"
     fi
     mkdir -p "$build_dir/scratch"
-    cd "$root/gem5/util/m5"
+    cd "$root/third_party/gem5/util/m5"
     TMPDIR="$build_dir/scratch" scons "build/$abi/out/m5"
 }
 

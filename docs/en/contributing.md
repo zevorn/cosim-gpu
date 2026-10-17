@@ -3,7 +3,8 @@
 # Contributing
 
 This page defines the patch requirements for the top-level cosim-gpu
-repository. Changes inside the `gem5` and `gem5-resources` submodules follow
+repository. Changes inside the `third_party/gem5` and
+`third_party/gem5-resources` submodules follow
 the rules of those repositories.
 
 The justfile uses `dev-`, `build-`, `run-`, `test-`, `check-`, `ci-` and `maint-`
@@ -111,21 +112,21 @@ Across runs, a matching gem5 build-input key restores the binary, static
 library and original development image together. Its manifest keeps the
 original compilation provenance and the current publication identity.
 
-A parallel image job builds the x86 m5 utility and runs the selected
-`gem5-resources` Packer/QEMU recipe. It installs Ubuntu 24.04, ROCm 7.0,
-amdgpu DKMS, PyTorch and the GPU initialization service, and extracts the
-paired Linux 6.8.0-124-generic kernel. The compressed QCOW2 disk, kernel,
-package inventory and checksums form one reusable artifact. The image job
-checks the actual available disk space after preparing its disposable runner.
+A parallel image job builds the x86 `m5` utility and uses the repository-owned
+Packer/Ansible profile at `resources/images/profiles/guest/ubuntu/24.04/x86_64/rocm7_0`.
+It starts from a checksum-pinned Ubuntu cloud disk, installs ROCm 7.0, AMDGPU
+DKMS, PyTorch and the GPU initialization service, then exports the paired
+Linux 6.8.0-124-generic kernel. The QCOW2 disk, kernel, package inventory and
+checksums form one reusable artifact. ROM, discovery firmware and WMI source
+inputs remain sourced from `third_party/gem5-resources`.
 
-The image cache key includes the source revisions, recipe contents, m5 binary,
-QEMU version, image builder and disk format. Reuse validates the input identity
-and every product hash. `COSIM_ROCM_IMAGE_EPOCH` can be changed from its default
-`1` to build a new image with refreshed package resolution. The completed image
-records the resolved Debian and Python package versions. The integration job
-downloads both producer artifacts by immutable IDs, checks the image structure,
-and runs on a fresh Ubuntu 24.04 x86_64/KVM runner. See
-[ROCm image construction](rocm-image.md) for the local entry points and inputs.
+The image cache key includes the base-image digest, profile and Ansible inputs,
+external input file hashes, the `m5` binary, QEMU, Packer, Ansible and disk
+format. Reuse validates the input identity and product hashes.
+`COSIM_ROCM_IMAGE_EPOCH` can be changed from its default `1` to request a fresh
+build. The integration job downloads both producer artifacts by immutable IDs,
+checks the image structure, and runs on a fresh Ubuntu 24.04 x86_64/KVM runner.
+See [ROCm image profiles](rocm-image.md) for the local interface and inputs.
 
 `just test-rocm-regression <output> <assets>` uses the Rust launcher and the sample
 host/device templates. It boots a fresh guest with a private disk overlay for

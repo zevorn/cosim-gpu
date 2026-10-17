@@ -27,8 +27,8 @@ jobs:
         id: submodules
         run: |
           git config --global url.https://github.com/.insteadOf git@github.com:
-          git submodule update --init --remote --checkout qemu gem5
-          if git diff --quiet -- qemu gem5; then
+          git submodule update --init --remote --checkout third_party/qemu third_party/gem5
+          if git diff --quiet -- third_party/qemu third_party/gem5; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -50,8 +50,8 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           add-paths: |
-            qemu
-            gem5
+            third_party/qemu
+            third_party/gem5
           branch: automation/update-qemu-gem5-submodules
           base: main
           delete-branch: true

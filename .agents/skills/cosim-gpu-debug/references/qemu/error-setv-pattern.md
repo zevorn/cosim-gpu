@@ -62,7 +62,7 @@ followed by another error-set call on the same `errp`:
 
 ```bash
 # Find potential double-set sites in QEMU
-search pattern="error_set[gv]_errno\(errp" paths=["qemu/"]
+search pattern="error_set[gv]_errno\(errp" paths=["third_party/qemu/"]
 # Cross-check: does the immediately preceding call also receive errp?
 ```
 
@@ -101,7 +101,7 @@ gdb -q -batch \
   -ex 'break error.c:62 if *errp != NULL' \
   -ex run \
   -ex 'bt full' \
-  --args qemu/build/qemu-system-x86_64 [args...]
+  --args build/qemu/qemu-system-x86_64 [args...]
 ```
 
 ## Upstream status

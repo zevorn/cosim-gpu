@@ -97,33 +97,37 @@ just build-qemu        # 使用宿主机全部 CPU；`just build-qemu 4` 限制�
 
 ## 构建磁盘镜像
 
-磁盘镜像包含 Ubuntu 24.04 + ROCm 7.0 + 内核 6.8.0-79-generic 及 amdgpu DKMS 模块。
+当前镜像配方构建 Ubuntu 24.04、ROCm 7.0、amdgpu DKMS 模块及与模块匹配的内核。
 
 ### 自动构建
 
 ```bash
-just build-m5          # 推荐：避免在 Guest 虚拟机内 git clone
+just build-m5 x86      # 推荐：避免在 Guest 虚拟机内 git clone
 just build-disk
+just test-rocm-assets
 ```
 
-若 `gem5-resources` 尚未初始化，`just build-disk` 会先初始化该子模块再开始构建。
+镜像配方和 Ansible 任务放在 `resources/images/`。构建过程使用保留在
+`third_party/gem5-resources/` 中的固件、WMI 源码和 GPU 支持文件。
 
 ### 自定义镜像构建
 
 ```bash
-just build-rocm-assets build/rocm-custom
+scripts/cosim-image list
+scripts/cosim-image validate guest/ubuntu/24.04/x86_64/rocm7_0
 ```
 
-设置 `PKR_VAR_*` 环境变量可以覆盖 Packer 镜像参数。
+添加新的 profile 目录即可选择其他操作系统镜像或软件包组合。
 
 ### 产出
 
 | 产物 | 路径 | 大小 |
 |---|---|---|
-| 磁盘镜像 | `build/rocm-local-installed/disk` | 约 55 GB |
-| 内核 | `build/rocm-local-installed/kernel` | 约 64 MB |
+| 磁盘镜像 | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk` | 虚拟容量 56 GB |
+| 内核 | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel` | 配方产物 |
 
-> **提示（国内网络）：** 如果构建过程中包下载卡住，可以应用国内镜像补丁加速 VM 内的 `apt`。详见[参考手册 §7](reference.md#7-国内镜像配置)。
+使用 `cosim run --dry-run` 可以检查 payload、镜像缓存状态和解析后的启动命令，
+整个过程不会构建镜像，也不会启动模拟器。
 
 ## 启动联合仿真
 
@@ -151,7 +155,7 @@ just run-launch --num-cus 80               # 自定义 CU 数量
 
 ```bash
 docker run -d --name gem5-cosim \
-    -v /path/to/cosim-gpu/gem5:/gem5 \
+    -v /path/to/cosim-gpu/third_party/gem5:/gem5 \
     -v /path/to/cosim-gpu/build:/build \
     -v /tmp:/tmp \
     -v /dev/shm:/dev/shm \
@@ -203,17 +207,20 @@ docker exec gem5-cosim chmod 666 /dev/shm/mi300x-vram
 ```bash
 qemu-system-x86_64 \
     -machine q35 -enable-kvm -cpu host \
+    -snapshot \
     -m 8G -smp 4 \
     -object memory-backend-file,id=mem0,size=8G,mem-path=/dev/shm/cosim-guest-ram,share=on \
     -numa node,memdev=mem0 \
-    -kernel "$PWD/build/rocm-local-installed/kernel" \
+    -kernel "$PWD/build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel" \
     -append "console=ttyS0,115200 root=/dev/vda1 modprobe.blacklist=amdgpu" \
-    -drive "file=$PWD/build/rocm-local-installed/disk,format=raw,if=virtio" \
+    -drive "file=$PWD/build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk,format=qcow2,if=virtio" \
     -device 'vfio-user-pci,socket={"type":"unix","path":"/tmp/gem5-mi300x.sock"}' \
     -nographic -no-reboot
 ```
 
 > **重要：** 内核命令行必须包含 `modprobe.blacklist=amdgpu`，防止 PCI 子系统在 VGA ROM 写入共享内存之前自动加载驱动。`cosim-gpu-setup.service` 会按正确顺序初始化。
+
+QEMU 会把客户机的修改写入临时覆盖镜像，并在退出时丢弃这些修改，从而保留已校验的镜像包。
 
 #### SSH 访问客户机
 

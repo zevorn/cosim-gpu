@@ -107,8 +107,8 @@ console=ttyS0,115200 root=/dev/vda1 modprobe.blacklist=amdgpu
 | Artifact | Path | Size |
 |----------|------|------|
 | gem5 binary | `build/gem5/<native>/VEGA_X86/gem5.opt` | Depends on build options |
-| Disk image | `build/rocm-local-installed/disk` | ~55 GB |
-| Kernel | `build/rocm-local-installed/kernel` | ~64 MB |
+| Disk image | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/disk` | 56 GB virtual capacity |
+| Kernel | `build/images/guest/ubuntu/24.04/x86_64/rocm7_0/kernel` | Profile output |
 | QEMU binary | `qemu-system-x86_64` from the host `PATH` | -- |
 
 ---
@@ -272,7 +272,7 @@ The driver checks `(amdgpu_ip_block_mask & (1 << i))` where `i` is the discovery
 |---|---|
 | **Symptom** | `Failed to init DRM client: -13` followed by kernel panic. NULL pointer dereference in `ttm_resource_move_to_lru_tail` |
 | **Root Cause** | Disk image missing `amddrm_exec.ko.zst` DKMS module. Without it, TTM memory manager fails, `drm_dev_enter()` returns `-EACCES` (-13) |
-| **Fix** | Rebuild disk image using latest `gem5-resources` (`origin/stable` branch). Verify with `guestfish` that `amddrm_exec.ko.zst` exists in `/lib/modules/6.8.0-79-generic/updates/dkms/` |
+| **Fix** | Verify the selected image bundle and its `kernel-release` and `amdgpu-module.txt` records. Rebuild the profile with `scripts/cosim-image build guest/ubuntu/24.04/x86_64/rocm7_0` when its inputs are stale. |
 
 ### 4.15 Driver rmmod After hw_init Failure
 
@@ -423,29 +423,26 @@ If PTE is 0 (unmapped), the address is mapped to sink (`paddr=0`) instead of fau
 
 ---
 
-## 7. China Mirror Configuration
+## 7. Guest Image Profiles
 
-When building disk images from China, `apt` inside the VM fetches from `us.archive.ubuntu.com`, which often hangs (Packer reports `Timeout waiting for SSH`, or the provisioner aborts during ROCm installation).
+Guest image profiles are stored under `resources/images/profiles/<role>/<distribution>/<release>/<architecture>/<profile>/`. The ROCm sample selects `guest/ubuntu/24.04/x86_64/rocm7_0` from its payload file.
 
-### Apply the Patch
-
-```bash
-cd gem5-resources
-git apply ../scripts/patches/0001-user-data-cn-mirror.patch
-```
-
-### Revert the Patch
+Build or inspect the selected profile with:
 
 ```bash
-cd gem5-resources
-git apply -R ../scripts/patches/0001-user-data-cn-mirror.patch
+scripts/cosim-image list
+scripts/cosim-image validate guest/ubuntu/24.04/x86_64/rocm7_0
+scripts/cosim-image build guest/ubuntu/24.04/x86_64/rocm7_0
+cosim run samples/machines/single-gpu.yaml --payload samples/payloads/ubuntu-rocm7_0.yaml --dry-run
 ```
 
-To use a different mirror, edit the URI in the patch file and re-apply.
+The profile starts from a pinned Ubuntu cloud disk image, provisions it through Packer's QEMU builder and Ansible, then stores the verified disk and kernel under `build/images/`. A normal `cosim run` builds the profile when needed and reuses the verified bundle afterward.
 
 ---
 
 ## 8. File Reference
+
+The following gem5 source paths are relative to `third_party/gem5/`.
 
 ### gem5 Source Files (`src/dev/amdgpu/`)
 
@@ -475,7 +472,10 @@ To use a different mirror, edit the URI in the patch file and re-apply.
 | `scripts/Dockerfile.dev` | Development container image definition |
 | `scripts/dev.sh` | Runs a command on the host or in a temporary development container |
 | `scripts/build.sh` | Builds QEMU, gem5 and m5 in the selected environment |
-| `scripts/patches/0001-user-data-cn-mirror.patch` | China mirror patch for disk image build |
+| `resources/images/packer/qemu.pkr.hcl` | Shared Packer QEMU builder |
+| `resources/images/ansible/provision.yml` | Shared Ansible provisioning entry |
+| `resources/images/profiles/` | OS and role-specific guest image profiles |
+| `scripts/cosim-image` | Bash entry for listing, validating, building and verifying image profiles |
 
 ### gem5 Modified Infrastructure Files
 
@@ -495,7 +495,7 @@ To use a different mirror, edit the URI in the patch file and re-apply.
 
 | Path | Purpose |
 |------|---------|
-| `ext/libvfio-user/` | libvfio-user library (git submodule, vfio-user transport) |
+| `third_party/gem5/ext/libvfio-user/` | libvfio-user library (git submodule, vfio-user transport) |
 
 ### Guest Disk Image Contents
 

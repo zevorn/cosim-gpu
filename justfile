@@ -12,6 +12,8 @@ host_arch_input := env("COSIM_HOST_ARCH", arch())
 host_arch := if host_arch_input == "aarch64" { "aarch64" } else if host_arch_input == "x86_64" { "x86_64" } else { error("COSIM_HOST_ARCH must be aarch64 or x86_64") }
 container_platform := if host_arch == "aarch64" { "linux/arm64" } else { "linux/amd64" }
 gem5_build_dir := env("GEM5_BUILD_DIR", "build/gem5/" + host_arch + "/VEGA_X86")
+rocm_profile := "guest/ubuntu/24.04/x86_64/rocm7_0"
+rocm_image_dir := "build/images/" + rocm_profile
 dev_image := env("COSIM_DEV_IMAGE", "cosim-dev:local")
 gpu_fs_image := env("GPU_APP_BUILD_IMAGE", "ghcr.io/gem5/gpu-fs:latest")
 build_jobs := env("JOBS", num_cpus())
@@ -32,10 +34,10 @@ default:
 # Build
 # ---------------------------------------------------------------------------
 
-# Initialize the qemu, gem5 and gem5-resources submodules
+# Initialize the simulator and workload submodules
 [group('dev')]
 dev-submodules:
-    git submodule update --init --recursive qemu gem5 gem5-resources
+    git submodule update --init --recursive third_party/qemu third_party/gem5 third_party/gem5-resources
 
 # Build the development container image
 [group('dev')]
@@ -59,32 +61,33 @@ build-gem5 jobs=build_jobs *scons_args:
 
 # Build the m5 utility under the top-level build directory
 [group('build')]
-build-m5: dev-rocm-sources
-    {{ dev }} scripts/build.sh m5 {{ m5_abi }}
+build-m5 abi=m5_abi: dev-rocm-sources
+    {{ dev }} scripts/build.sh m5 "$1"
 
 # Initialize missing image sources while preserving existing worktrees
 [group('dev')]
 dev-rocm-sources:
-    if [ ! -e gem5/.git ]; then git submodule update --init gem5; fi
-    if [ ! -e gem5-resources/.git ]; then git submodule update --init gem5-resources; fi
+    if [ ! -e third_party/gem5/.git ]; then git submodule update --init third_party/gem5; fi
+    if [ ! -e third_party/gem5-resources/.git ]; then git submodule update --init third_party/gem5-resources; fi
 
-# Build the guest disk image and kernel (needs KVM, QEMU, ~60 GB disk)
+# Build the x86 guest disk image and kernel (needs Linux KVM, QEMU, ~60 GB disk)
 [group('build')]
-build-disk: build-m5
-    python3 scripts/ci/rocm_assets.py build --format raw --output build/rocm-local
-    python3 scripts/ci/rocm_assets.py install-local --output build/rocm-local
+build-disk:
+    just build-m5 x86
+    scripts/cosim-image build {{ rocm_profile }}
 
-# Build a reusable kernel/disk bundle with the pinned gem5-resources recipe
+# Build a reusable kernel/disk bundle from the guest image recipe library
 [group('build')]
-build-rocm-assets output="build/rocm-assets": build-m5
-    python3 scripts/ci/rocm_assets.py build --output "$1"
+build-rocm-assets:
+    just build-m5 x86
+    scripts/cosim-image build {{ rocm_profile }}
 
 # Prepare disk capacity and dependencies on a disposable CI image builder
 [group('ci')]
 ci-prepare-image-host:
     bash scripts/ci/prepare_image_host.sh
 
-# Build a GPU application from gem5-resources/src/gpu
+# Build a GPU application from third_party/gem5-resources/src/gpu
 [group('build')]
 build-gpu-app name="square":
     ./scripts/run_mi300x_fs.sh build-app "$1"
@@ -119,27 +122,27 @@ ci-gem5-key:
 # Find a retained ROCm image from the same source repository and branch
 [group('ci')]
 ci-find-rocm-artifact key record:
-    python3 scripts/ci/image_artifact.py find "$@"
+    python3 -m scripts.ci.image_artifact find "$@"
 
 # Publish a fully verified downloaded image into the build output directory
 [group('ci')]
 ci-adopt-rocm-artifact source output key:
-    python3 scripts/ci/image_artifact.py adopt "$@"
+    python3 -m scripts.ci.image_artifact adopt "$@"
 
 # Remove only the failed download directory recorded by artifact selection
 [group('ci')]
 ci-discard-rocm-download record:
-    python3 scripts/ci/image_artifact.py discard "$1"
+    python3 -m scripts.ci.image_artifact discard "$1"
 
 # Validate the selected input identity and the complete downloaded image
 [group('ci')]
 ci-verify-rocm-artifact output key:
-    {{ dev }} python3 scripts/ci/image_artifact.py verify "$@"
+    {{ dev }} python3 -m scripts.ci.image_artifact verify "$@"
 
 # Exercise image selection and isolation against actual published artifacts
 [group('test')]
 test-rocm-artifact key output:
-    python3 scripts/ci/verify_image_artifact.py "$@"
+    python3 -m scripts.ci.verify_image_artifact "$@"
 
 # Republish a matching cached build while retaining original build provenance
 [group('ci')]
@@ -159,27 +162,27 @@ ci-restore-gem5 source:
 # Inspect the input key or verify a locally built ROCm kernel/disk bundle
 [group('ci')]
 ci-rocm-assets operation *args:
-    {{ dev }} python3 scripts/ci/rocm_assets.py "$@"
+    scripts/cosim-image "$@"
 
 # Validate the complete image configuration with real Packer plugins
 [group('check')]
-check-rocm-image output="artifacts/rocm-image-validate": build-m5
-    python3 scripts/ci/rocm_assets.py validate --output "$1"
+check-rocm-image:
+    scripts/cosim-image validate {{ rocm_profile }}
 
-# Check HCL syntax on any supported Packer host
+# Check Packer HCL and Ansible syntax on a supported build host
 [group('check')]
-check-rocm-syntax output="artifacts/rocm-image-syntax": dev-rocm-sources
-    python3 scripts/ci/rocm_assets.py syntax --output "$1"
+check-rocm-syntax:
+    scripts/cosim-image validate {{ rocm_profile }} --syntax-only
 
 # Check the resource scripts used by the image producer
 [group('check')]
 check-rocm-build-scripts:
-    shellcheck gem5-resources/src/x86-ubuntu-gpu-ml/build.sh gem5-resources/src/x86-ubuntu-gpu-ml/scripts/rocm-install.sh
+    shellcheck scripts/cosim-image scripts/cosim_guest_setup.sh
 
 # Exercise reuse and corruption rejection against a real built ROCm bundle
 [group('test')]
-test-rocm-assets output="build/rocm-assets":
-    {{ dev }} python3 scripts/ci/verify_rocm_assets.py "$1"
+test-rocm-assets output=rocm_image_dir:
+    python3 -m scripts.ci.verify_rocm_assets "$1"
 
 # Show which build artifacts are present
 [group('build')]
@@ -246,44 +249,44 @@ run-gem5-fs-legacy app="":
 
 # Check gem5 source regions, or entire explicit files, with its style tool
 [group('check')]
-[working-directory('gem5')]
+[working-directory('third_party/gem5')]
 check-gem5-style *files:
     if [ "$#" -gt 0 ]; then python3 util/style.py "$@" </dev/null; else python3 util/style.py -m $(git diff --name-only -- '*.cc' '*.hh' '*.py') </dev/null; fi
 
 # Inspect gem5 Python formatting without modifying files
 [group('check')]
-[working-directory('gem5')]
+[working-directory('third_party/gem5')]
 check-gem5-python-format +files:
     python3 -m black --check --diff "$@"
     python3 -m isort --check-only --diff "$@"
 
 # Inspect formatting of staged gem5 C++ changes without modifying files
 [group('check')]
-[working-directory('gem5')]
+[working-directory('third_party/gem5')]
 check-gem5-cxx-format:
     python3 util/run-git-clang-format.py --dry-run
 
 # Run the gem5 pre-commit hooks for explicit files
 [group('check')]
-[working-directory('gem5')]
+[working-directory('third_party/gem5')]
 check-gem5-hooks +files:
     pre-commit run --files "$@"
 
 # Validate a gem5 commit message with its repository hook
 [group('check')]
-[working-directory('gem5')]
+[working-directory('third_party/gem5')]
 check-gem5-message message:
     pre-commit run --hook-stage commit-msg --commit-msg-filename "$1"
 
 # Validate the focused gem5 workflow
 [group('check')]
 check-gem5-ci:
-    actionlint .github/workflows/build.yml gem5/.github/workflows/mi300x-ci.yaml
+    actionlint .github/workflows/build.yml third_party/gem5/.github/workflows/mi300x-ci.yaml
 
 # Validate the build and regression workflow dependency graph
 [group('check')]
 check-ci:
-    actionlint .github/workflows/build.yml .github/workflows/integration.yml .github/workflows/ci.yml
+    actionlint .github/workflows/build.yml .github/workflows/integration.yml .github/workflows/ci.yml .github/workflows/update-simulator-submodules.yml
 
 # Exercise guest command completion and failure reporting using real shells
 [group('test')]
@@ -305,7 +308,7 @@ test-ci-integration: build-cosim
 [group('test')]
 test-gem5-mi300x output case="all":
     mkdir -p "$1"
-    {{ dev }} --mount "$1" python3 gem5/tests/mi300x/verify.py --gem5 "{{ gem5_build_dir }}/gem5.opt" --output "$(cd "$1" && pwd)" --case "$2"
+    {{ dev }} --mount "$1" python3 third_party/gem5/tests/mi300x/verify.py --gem5 "{{ gem5_build_dir }}/gem5.opt" --output "$(cd "$1" && pwd)" --case "$2"
 
 # Check Rust formatting, warnings and behavior
 [group('check')]

@@ -65,7 +65,7 @@ modprobe amdgpu ip_block_mask=0x67 ppfeaturemask=0 dpm=0 audio=0 ras_enable=0 di
 ## Architecture
 
 QEMU (Q35+KVM) communicates with gem5's MI300X model through the standard
-vfio-user protocol over a Unix socket. The `qemu` submodule tracks the
+vfio-user protocol over a Unix socket. The `third_party/qemu` submodule tracks the
 `gevico/cosim-gpu` branch of gevico/qemu (QEMU v11.1.2, no co-simulation
 patches);
 `just build-qemu` builds it, and the launcher falls back to the system QEMU.

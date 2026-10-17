@@ -10,11 +10,11 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential ca-certificates cmake curl git m4 ninja-build \
-        pkg-config pre-commit python3-dev python3-pip python3-ply \
+        pkg-config pre-commit python3-dev python3-pip python3-venv python3-ply binutils \
         python3-psutil python3-pydot python3-venv python3-pexpect python3-yaml scons \
         zlib1g-dev libprotobuf-dev protobuf-compiler libprotoc-dev \
         libgoogle-perftools-dev libboost-all-dev libhdf5-dev \
-        libcapstone-dev libpng-dev libelf-dev libjson-c-dev \
+        libcapstone-dev libpng-dev libelf-dev libjson-c-dev xorriso \
         libglib2.0-dev libpixman-1-dev libslirp-dev libcmocka-dev \
         libfdt-dev qemu-system-arm qemu-system-x86 qemu-utils \
         shellcheck util-linux \

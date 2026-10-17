@@ -1,71 +1,54 @@
 ---
 name: cosim-gpu-build
-description: Use when building gem5 or QEMU, checking build provenance, or preserving gem5 incremental builds across worktrees. Delegates to scripts/cosim_build.sh; never hand-roll Docker, scons, or QEMU make commands.
+description: Use when building gem5, QEMU or m5, or checking their build inputs and binary provenance. Use the top-level just recipes.
 ---
 
 # Cosim Build
 
-Build gem5 and QEMU for cosim through `scripts/cosim_build.sh`. This script is
-the single source of truth for compilation, metadata, and incremental skip
-behavior.
+Build simulators through the top-level `justfile`. The source submodules live
+under `third_party/`, and build outputs stay under the repository's `build/`
+directory.
 
-## Quickstart
-
-```bash
-bash scripts/cosim_build.sh gem5
-bash scripts/cosim_build.sh qemu
-bash scripts/cosim_build.sh all
-bash scripts/cosim_build.sh gem5 --force
-```
-
-For an isolated gem5 worktree:
+## Build recipes
 
 ```bash
-GEM5_DIR=/abs/path/to/gem5-worktree bash scripts/cosim_build.sh gem5
+just dev-image
+just build-gem5
+just build-qemu
+just build-m5 x86
 ```
 
-When testing that worktree, pass the matching binary explicitly:
+Use `just build-m5` without an argument to select the host ABI. Pass `x86` for
+the ROCm guest image profile. `just build-gem5 1` limits gem5 compilation to one
+job when linking runs out of memory. The recipes select the host or development
+container through `COSIM_ENV`.
+
+## Source and output paths
+
+| Component | Source | Default output |
+|-----------|--------|---------------|
+| gem5 | `third_party/gem5/` | `build/gem5/<host-architecture>/VEGA_X86/gem5.opt` |
+| QEMU | `third_party/qemu/` | `build/qemu/qemu-system-<host-architecture>` |
+| m5 | `third_party/gem5/util/m5/` | `build/m5/<abi>/out/m5` |
+
+`GEM5_BUILD_DIR` can select another output directory under the repository's
+`build/`. It does not select a different gem5 source tree. Inspect the selected
+path with:
 
 ```bash
---gem5-bin /abs/path/to/gem5-worktree/build/VEGA_X86/gem5.opt
+just --evaluate gem5_build_dir
 ```
 
-## Required Policy
+## Build provenance
 
-Read `references/build-policy-and-provenance.md` before deciding whether to
-rebuild, accepting binary evidence, using a nonstandard binary, or responding
-to stale metadata.
+Read `references/build-policy-and-provenance.md` before deciding whether a
+binary matches the checked-out sources or accepting build evidence. Read
+`references/worktree-incremental-build.md` when building from an isolated
+cosim-gpu worktree.
 
-Read `references/worktree-incremental-build.md` before creating an isolated
-worktree, copying build outputs, removing an artifact worktree, or accepting
-evidence from a nonstandard gem5 worktree.
+Use the binary at the selected output path when launching or testing. CI runtime
+artifacts include a manifest with the source revision, build key and artifact
+checksums.
 
-Do not run raw `docker run ... scons`, direct `scons`, or `make -C qemu/build`
-commands as substitutes for the build script.
-
-## Binary Locations
-
-| Component | Binary |
-|-----------|--------|
-| gem5 | `gem5/build/VEGA_X86/gem5.opt` |
-| QEMU | `qemu/build/qemu-system-x86_64` |
-
-`just dev-image` builds the development image from `scripts/Dockerfile.dev`.
-Build recipes run in it when `COSIM_ENV=container` (the default outside Linux).
-
-## Integration
-
-- `cosim-gpu-flow-plan` records source bases before build evidence matters.
-- `cosim-gpu-test` and `cosim-gpu-debug` check provenance before launch.
-- After any rebuild, all earlier test evidence is stale for current source
-  until rerun with the intended binary.
-
-## Verification
-
-```bash
-bash scripts/cosim_build.sh gem5
-cat gem5/build/VEGA_X86/.cosim-build-meta
-bash scripts/cosim_build.sh gem5
-```
-
-The second run should report that gem5 is up to date and skip rebuilding.
+Do not invoke `scripts/build.sh`, raw `scons`, QEMU `configure`, `make`, or
+Docker build commands directly. Use the corresponding `just` recipe.
